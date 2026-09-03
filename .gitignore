@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.local
+*.log
+.pytest_cache/
+.ruff_cache/
+logs/
+*.db
+*.sqlite3
+
+# ADK's local session/artifact store (use_local_storage defaults to True in
+# get_fast_api_app, and it writes into each agent directory).
+.adk/

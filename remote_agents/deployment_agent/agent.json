@@ -1,0 +1,53 @@
+{
+  "name": "deployment_agent",
+  "description": "Release operations specialist. Checks release readiness, runs compliance scans, raises human change-approval tickets and drives deployment jobs for services owned by the platform team. Pauses for a human decision before any production release.",
+  "url": "http://127.0.0.1:8001/a2a/deployment_agent",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
+  "preferredTransport": "JSONRPC",
+  "provider": {
+    "organization": "adk-a2a-poc",
+    "url": "https://github.com/sthitaprajnas/adk-a2a-poc"
+  },
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
+  "supportsAuthenticatedExtendedCard": false,
+  "skills": [
+    {
+      "id": "release_readiness",
+      "name": "Release readiness check",
+      "description": "Reports whether a given service version can be released into an environment: open incidents, service tier, owning team, assessed risk and whether a human change approval is required.",
+      "tags": ["release", "readiness", "preflight"],
+      "examples": [
+        "Is checkout-api 2.14.0 ready for production?",
+        "Check release readiness for search-indexer 0.9.1 in staging"
+      ]
+    },
+    {
+      "id": "compliance_scan",
+      "name": "Pre-release compliance scan",
+      "description": "Runs the SOC2/PCI control scan for a service before release. Takes tens of seconds; the A2A task stays in the working state for the whole scan and streams progress.",
+      "tags": ["compliance", "soc2", "pci", "long-running"],
+      "examples": ["Run the compliance scan for billing-worker in production"]
+    },
+    {
+      "id": "human_change_approval",
+      "name": "Human change approval",
+      "description": "Opens a change-approval ticket and pauses the task in the input-required state until a human approves or rejects it. The pending approval is surfaced to the caller as a long-running function call that must be answered with a function response on the same task.",
+      "tags": ["hitl", "approval", "governance", "input-required"],
+      "examples": ["Deploy checkout-api 2.14.0 to production"]
+    },
+    {
+      "id": "deployment_execution",
+      "name": "Deployment execution",
+      "description": "Runs a canary deployment pipeline that outlives a single request. Returns a job handle immediately and parks the task in the input-required state until the terminal job result is delivered back as a function response.",
+      "tags": ["deploy", "long-running", "async", "input-required"],
+      "examples": ["Roll out checkout-api 2.14.0 now that CHG-1234 is approved"]
+    }
+  ]
+}
