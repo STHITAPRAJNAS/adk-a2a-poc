@@ -1,0 +1,688 @@
+<title>Twelve Pallets to Milan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap">
+<style>
+  :root {
+    --paper:     #F0EEEA;
+    --surface:   #FBFAF8;
+    --surface-2: #E5E2DC;
+    --ink:       #1B1917;
+    --ink-soft:  #423E39;
+    --muted:     #6E6862;
+    --rule:      #D3CEC6;
+    --rule-soft: #E2DED8;
+
+    --shipper:    #2E4396;   /* the side that opens the conversation */
+    --shipper-bg: #DFE4F5;
+    --carrier:    #0E6551;   /* the side that owns the task */
+    --carrier-bg: #D8E9E2;
+
+    --wait:    #9C4A12;      /* your turn / parked */
+    --wait-bg: #F7E3D5;
+    --deal:    #3F6222;      /* agreed */
+    --deal-bg: #E2EBD5;
+
+    --mono:  "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sans:  "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+
+    --measure: 66ch;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #16151A;
+      --surface:   #1E1D23;
+      --surface-2: #292830;
+      --ink:       #EAE7E2;
+      --ink-soft:  #C3BFB8;
+      --muted:     #928D86;
+      --rule:      #363540;
+      --rule-soft: #2A2933;
+
+      --shipper:    #93A5EC;
+      --shipper-bg: #1F2542;
+      --carrier:    #55BB9C;
+      --carrier-bg: #14312A;
+
+      --wait:    #E0954F;
+      --wait-bg: #38220F;
+      --deal:    #9BC172;
+      --deal-bg: #232F17;
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:     #16151A;
+    --surface:   #1E1D23;
+    --surface-2: #292830;
+    --ink:       #EAE7E2;
+    --ink-soft:  #C3BFB8;
+    --muted:     #928D86;
+    --rule:      #363540;
+    --rule-soft: #2A2933;
+
+    --shipper:    #93A5EC;
+    --shipper-bg: #1F2542;
+    --carrier:    #55BB9C;
+    --carrier-bg: #14312A;
+
+    --wait:    #E0954F;
+    --wait-bg: #38220F;
+    --deal:    #9BC172;
+    --deal-bg: #232F17;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 22px 90px; }
+
+  /* ── masthead ── */
+  .masthead { padding: 54px 0 26px; border-bottom: 2px solid var(--ink); margin-bottom: 40px; }
+  .kicker {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 16px;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 700;
+    font-size: clamp(2.2rem, 5.4vw, 3.3rem); line-height: 1.05;
+    letter-spacing: -.02em; margin: 0 0 16px; text-wrap: balance;
+  }
+  .standfirst { font-size: 1.14rem; color: var(--ink-soft); max-width: var(--measure); margin: 0 0 26px; }
+
+  .cast { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .cast div { border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px; background: var(--surface); }
+  .cast .role { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 3px; }
+  .cast .who  { font-weight: 600; font-size: 15.5px; margin: 0 0 2px; }
+  .cast .dom  { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 0; }
+  .cast .s .role { color: var(--shipper); }
+  .cast .c .role { color: var(--carrier); }
+
+  /* ── prose ── */
+  section { margin: 0 0 54px; }
+  h2 {
+    font-family: var(--serif); font-weight: 700; font-size: 1.7rem;
+    letter-spacing: -.015em; line-height: 1.15; margin: 0 0 4px; text-wrap: balance;
+  }
+  .sub {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 18px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--rule);
+  }
+  h3 { font-size: 1.04rem; font-weight: 700; margin: 30px 0 7px; }
+  p, ul, ol { max-width: var(--measure); }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 1.2em; }
+  li { margin: 0 0 7px; }
+  li::marker { color: var(--muted); }
+  strong { font-weight: 700; }
+  a { color: var(--shipper); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--wait); outline-offset: 3px; border-radius: 2px; }
+
+  code {
+    font-family: var(--mono); font-size: .84em;
+    background: var(--surface-2); border-radius: 3px; padding: 1px 5px;
+  }
+
+  /* ── state chips ── */
+  .st {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+    padding: 2px 7px; border-radius: 3px; border: 1px solid; white-space: nowrap;
+    display: inline-block;
+  }
+  .st-wait { background: var(--wait-bg); color: var(--wait); border-color: var(--wait); }
+  .st-run  { background: var(--carrier-bg); color: var(--carrier); border-color: var(--carrier); }
+  .st-deal { background: var(--deal-bg); color: var(--deal); border-color: var(--deal); }
+  .st-new  { background: var(--surface-2); color: var(--muted); border-color: var(--rule); }
+
+  /* ── the transcript ── */
+  .turn {
+    display: grid;
+    grid-template-columns: 92px 1fr 132px;
+    gap: 0 20px;
+    border-top: 1px solid var(--rule);
+    padding: 22px 0;
+    align-items: start;
+  }
+  .turn:last-of-type { border-bottom: 1px solid var(--rule); }
+  .turn-rail { position: sticky; top: 14px; }
+  .turn-n {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    line-height: 1; display: block; margin-bottom: 6px;
+  }
+  .turn-who {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .09em;
+    text-transform: uppercase; font-weight: 500;
+  }
+  .turn[data-who="shipper"] .turn-n, .turn[data-who="shipper"] .turn-who { color: var(--shipper); }
+  .turn[data-who="carrier"] .turn-n, .turn[data-who="carrier"] .turn-who { color: var(--carrier); }
+  .turn[data-who="inside"]  .turn-n, .turn[data-who="inside"]  .turn-who { color: var(--wait); }
+
+  .turn-body { min-width: 0; }
+  .turn-body > :last-child { margin-bottom: 0; }
+  .turn-say { font-size: 1.03rem; margin: 0 0 12px; max-width: none; }
+  .turn-note {
+    font-size: 14.6px; color: var(--ink-soft); margin: 12px 0 0; max-width: none;
+    border-left: 2px solid var(--rule); padding-left: 13px;
+  }
+  .turn-note b { color: var(--ink); }
+  .turn-state { text-align: right; padding-top: 3px; }
+  .turn-state .lbl {
+    display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 5px;
+  }
+
+  @media (max-width: 720px) {
+    .turn { grid-template-columns: 1fr; gap: 12px; }
+    .turn-rail { position: static; display: flex; align-items: baseline; gap: 10px; }
+    .turn-n { margin-bottom: 0; font-size: 18px; }
+    .turn-state { text-align: left; }
+  }
+
+  /* ── wire blocks ── */
+  .wire { border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); overflow: hidden; margin: 0 0 4px; }
+  .wire-head {
+    font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+    background: var(--surface-2); border-bottom: 1px solid var(--rule);
+    padding: 6px 12px; display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  }
+  .wire-head b { font-weight: 700; }
+  .wire-head .dir-s { color: var(--shipper); }
+  .wire-head .dir-c { color: var(--carrier); }
+  .wire pre {
+    margin: 0; padding: 12px; overflow-x: auto;
+    font-family: var(--mono); font-size: 12.4px; line-height: 1.55; color: var(--ink-soft);
+  }
+  .wire pre .c  { color: var(--muted); font-style: italic; }
+  .wire pre .hl { color: var(--wait); font-weight: 500; }
+  .wire pre .g  { color: var(--deal); font-weight: 500; }
+
+  /* ── callouts ── */
+  .note {
+    margin: 22px 0; padding: 15px 17px; background: var(--surface);
+    border: 1px solid var(--rule); border-left: 3px solid var(--wait); border-radius: 3px;
+  }
+  .note > :last-child { margin-bottom: 0; }
+  .note p { max-width: none; }
+  .note-label {
+    display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--wait); margin: 0 0 6px;
+  }
+  .note.rule-note { border-left-color: var(--shipper); }
+  .note.rule-note .note-label { color: var(--shipper); }
+
+  /* ── tables ── */
+  .tablewrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--rule); border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; background: var(--surface); }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  thead th {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--muted); background: var(--surface-2); border-bottom: 1px solid var(--rule); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+
+  /* ── figure ── */
+  figure { margin: 26px 0; }
+  .figframe { border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); padding: 18px 16px 10px; overflow-x: auto; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--ink); }
+  figcaption { font-size: 13.5px; color: var(--muted); margin-top: 10px; max-width: var(--measure); line-height: 1.5; }
+
+  footer {
+    border-top: 1px solid var(--rule); margin-top: 60px; padding-top: 18px;
+    font-size: 13.6px; color: var(--muted); max-width: var(--measure);
+  }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="kicker">One negotiation, turn by turn · A2A protocol</p>
+  <h1>Twelve pallets to Milan</h1>
+  <p class="standfirst">
+    Two agents haggle over a freight rate: an opening quote, a counter, a pause
+    for a human, a re-price that takes twenty minutes, a deal. Every protocol
+    idea worth knowing shows up somewhere in those six turns — so here they are
+    in order, with what actually goes over the wire.
+  </p>
+  <div class="cast">
+    <div class="s">
+      <p class="role">Shipper · opens the conversation</p>
+      <p class="who">Acme freight desk agent</p>
+      <p class="dom">logistics.acme.example</p>
+    </div>
+    <div class="c">
+      <p class="role">Carrier · owns the task</p>
+      <p class="who">Nordlane booking agent</p>
+      <p class="dom">booking.nordlane.example</p>
+    </div>
+  </div>
+</header>
+
+<section>
+  <h2>Before anything happens</h2>
+  <p class="sub">the one rule that shapes all six turns</p>
+
+  <p>
+    The shipper needs 12 pallets moved Rotterdam → Milan, picked up Thursday,
+    delivered by Friday 18:00. It has found Nordlane's Agent Card and is about
+    to open a negotiation.
+  </p>
+
+  <p>
+    One thing decides the shape of everything that follows:
+    <strong>whoever speaks first is the client, and the client is the only side
+    that can ever make a call.</strong> Nordlane will never dial Acme. Not once
+    in this whole negotiation. Every single round trip is Acme reaching out and
+    Nordlane answering — even the turns where Nordlane is clearly the one with
+    something to say.
+  </p>
+
+  <div class="note rule-note">
+    <span class="note-label">Hold on to this</span>
+    <p>
+      A2A is plain HTTP request/response. There is no channel for the server to
+      call the client. So "the carrier gets back to us" is never something the
+      carrier does — it is something the shipper arranges. Turns 3 and 7 are
+      where that stops being a technicality.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>The negotiation</h2>
+  <p class="sub">six turns · one task · one open question at a time</p>
+
+  <!-- ─────────── 01 ─────────── -->
+  <div class="turn" data-who="shipper">
+    <div class="turn-rail"><span class="turn-n">01</span><span class="turn-who">Shipper</span></div>
+    <div class="turn-body">
+      <p class="turn-say">
+        "12 pallets, RTM → Milan, pick up Thursday, delivered by Friday 18:00.
+        What's your rate?"
+      </p>
+      <div class="wire">
+        <div class="wire-head"><b class="dir-s">→ POST /a2a/booking</b><span>message/stream</span></div>
+<pre>{ "method": "message/stream",
+  "params": { "message": {
+    "role": "user",
+    <span class="c">// no taskId — this is what opens a new one</span>
+    "parts": [ { "kind": "text", "text":
+        "12 pallets RTM→MXP, collect Thu, deliver by Fri 18:00. Rate?" } ]
+  } } }</pre>
+      </div>
+      <p class="turn-note">
+        No <code>taskId</code> in the message, so Nordlane <b>mints one</b> —
+        along with a <code>contextId</code> that will group every task in this
+        commercial conversation. The task is not one message. <b>The task is the
+        whole negotiation.</b>
+      </p>
+    </div>
+    <div class="turn-state"><span class="lbl">task</span><span class="st st-new">created</span></div>
+  </div>
+
+  <!-- ─────────── 02 ─────────── -->
+  <div class="turn" data-who="carrier">
+    <div class="turn-rail"><span class="turn-n">02</span><span class="turn-who">Carrier</span></div>
+    <div class="turn-body">
+      <p class="turn-say">
+        Nordlane checks Thursday capacity on the lane, prices it, and comes back:
+        <strong>€148 per pallet, 2-day transit, quote held 4 hours.</strong>
+      </p>
+      <div class="wire">
+        <div class="wire-head"><b class="dir-c">← SSE frames</b><span>same HTTP response, streaming</span></div>
+<pre>{ "kind": "task",          "id": "t-8f3c", "contextId": "c-a19b",
+  "status": { "state": "submitted" } }
+
+{ "kind": "status-update", "status": { "state": "working" } }
+      <span class="c">… capacity_check, tariff_lookup — tool calls stream past …</span>
+
+{ "kind": "status-update",
+  "status": { "state": <span class="hl">"input-required"</span>,
+    "message": { "role": "agent", "parts": [ { "kind": "text", "text":
+      "EUR 148/pallet, 2-day, held 4h. Confirm or counter." } ] } },
+  "final": true }                        <span class="c">← the stream ends here</span></pre>
+      </div>
+      <p class="turn-note">
+        Nordlane has more to say later, so it does <b>not</b> finish the task.
+        <code>input-required</code> is the protocol's way of saying
+        <b>"your move"</b> — it is not only for human approval. And
+        <code>final: true</code> closes the HTTP response: Acme's live view of
+        this task is now gone, though the task itself is very much alive.
+      </p>
+    </div>
+    <div class="turn-state"><span class="lbl">task</span><span class="st st-wait">input-required</span></div>
+  </div>
+
+  <!-- ─────────── 03 ─────────── -->
+  <div class="turn" data-who="shipper">
+    <div class="turn-rail"><span class="turn-n">03</span><span class="turn-who">Shipper</span></div>
+    <div class="turn-body">
+      <p class="turn-say">
+        Acme counters: <strong>€120 per pallet</strong>, and offers to flex
+        collection to Wednesday if that helps fill a truck.
+      </p>
+      <div class="wire">
+        <div class="wire-head"><b class="dir-s">→ POST /a2a/booking</b><span>message/stream</span></div>
+<pre>{ "method": "message/stream",
+  "params": { "message": {
+    "role": "user",
+    <span class="hl">"taskId": "t-8f3c"</span>,          <span class="c">// ← continues the negotiation</span>
+    "contextId": "c-a19b",
+    "parts": [ { "kind": "text", "text":
+        "EUR 120/pallet. Can flex collection to Wed if it helps." } ]
+  } } }</pre>
+      </div>
+      <p class="turn-note">
+        The whole counter-offer is <b>one field</b>: <code>taskId</code>. Omit it
+        and Nordlane opens a second, unrelated negotiation and quotes €148 all
+        over again, having no idea the two are connected. This is the single
+        most common A2A integration bug.
+      </p>
+    </div>
+    <div class="turn-state"><span class="lbl">task</span><span class="st st-run">working</span></div>
+  </div>
+
+  <!-- ─────────── 04 ─────────── -->
+  <div class="turn" data-who="carrier">
+    <div class="turn-rail"><span class="turn-n">04</span><span class="turn-who">Carrier</span></div>
+    <div class="turn-body">
+      <p class="turn-say">
+        €120 is below Nordlane's auto-approve floor of €132, so a human has to
+        sign it off — and that human wants the Wednesday re-price first, which
+        the pricing engine takes about twenty minutes to produce.
+      </p>
+      <div class="wire">
+        <div class="wire-head"><b class="dir-c">← SSE frames</b><span>the pause</span></div>
+<pre>{ "kind": "status-update", "status": { "state": "working" } }
+
+{ "kind": "status-update",
+  "status": { "state": <span class="hl">"input-required"</span>,
+    "message": { "role": "agent", "parts": [ {
+      "kind": "data",
+      "data": { "id": <span class="hl">"fc-4b1e"</span>,
+                "name": "request_rate_approval",
+                "args": { "lane": "RTM-MXP", "offered": 120,
+                          "floor": 132, "repricing_for": "Wed" } },
+      "metadata": { "adk_type": "function_call",
+                    <span class="hl">"adk_is_long_running": true</span> }
+    } ] } },
+  "final": true }</pre>
+      </div>
+      <p class="turn-note">
+        Same state as turn 2, <b>completely different meaning</b>. There, the
+        message was text and Acme was expected to reply in words. Here it is a
+        <b>DataPart</b> carrying a function call flagged
+        <code>adk_is_long_running</code> — a structured "I am blocked on this
+        specific thing, and here is its id". Acme cannot tell these two
+        situations apart from the state alone. It has to read the parts.
+      </p>
+    </div>
+    <div class="turn-state"><span class="lbl">task</span><span class="st st-wait">input-required</span></div>
+  </div>
+
+  <!-- ─────────── interlude ─────────── -->
+  <div class="turn" data-who="inside">
+    <div class="turn-rail"><span class="turn-n">⏸</span><span class="turn-who">20 min</span></div>
+    <div class="turn-body">
+      <p class="turn-say"><strong>Nothing is happening. This is the part that trips everyone up.</strong></p>
+      <p>
+        It is tempting to picture Nordlane's agent sitting there, waiting for the
+        pricing engine, ready to tell Acme the moment it lands. That is not what
+        is happening. When the task parked, <b>Nordlane's agent finished
+        running</b> — the process moved on, nothing is holding the negotiation
+        in memory. There is no coroutine watching the pricing engine, because
+        there is no coroutine at all.
+      </p>
+      <p>
+        So two separate things have to be arranged, and people usually only
+        think of the second:
+      </p>
+      <ol>
+        <li><strong>Something must wake Nordlane.</strong> The pricing engine and
+          the approval UI live outside the agent. When the human clicks approve,
+          <b>that system</b> sends the decision into Nordlane's own A2A endpoint —
+          same <code>taskId</code>, a DataPart answering <code>fc-4b1e</code>.
+          It arrives as an ordinary inbound call, no different from Acme's. The
+          worker becomes a client of its own agent.</li>
+        <li><strong>Acme must find out.</strong> Its stream closed twenty minutes
+          ago. Nordlane cannot ring it. So Acme picks one of three:</li>
+      </ol>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Option</th><th>What Acme does</th><th>What it costs</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Poll</strong></td>
+              <td><code>tasks/get</code> every minute</td>
+              <td>Simple, always works, up to a minute stale. Fine here.</td>
+            </tr>
+            <tr>
+              <td><strong>Re-attach</strong></td>
+              <td><code>tasks/resubscribe</code> and hold it open</td>
+              <td>Instant. But one held connection per open negotiation, and it dies if <em>Nordlane</em> restarts.</td>
+            </tr>
+            <tr>
+              <td><strong>Webhook</strong></td>
+              <td>register a URL, then hang up entirely</td>
+              <td>Survives anything. Requires Acme to <strong>be a server</strong> — with TLS, auth, and a public URL.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="turn-note">
+        Notice what the third option really is: to be told, Acme has to stop
+        being purely a client. That is why real A2A deployments make
+        <b>every</b> agent a server, whether or not it currently needs to
+        receive anything.
+      </p>
+    </div>
+    <div class="turn-state"><span class="lbl">task</span><span class="st st-wait">still parked</span></div>
+  </div>
+
+  <!-- ─────────── 05 ─────────── -->
+  <div class="turn" data-who="carrier">
+    <div class="turn-rail"><span class="turn-n">05</span><span class="turn-who">Carrier</span></div>
+    <div class="turn-body">
+      <p class="turn-say">
+        The re-price lands at €126 cost on the Wednesday truck. Nordlane's
+        pricing manager approves <strong>€128 per pallet</strong>. The approval
+        system posts that decision into Nordlane's own endpoint, the agent wakes,
+        and Acme — resubscribed since turn 4 — watches it happen live.
+      </p>
+      <div class="wire">
+        <div class="wire-head"><span>approval system <b class="dir-c">→ Nordlane's own /a2a/booking</b></span><span>message/send</span></div>
+<pre>{ "message": { "role": "user", <span class="hl">"taskId": "t-8f3c"</span>,
+    "parts": [ { "kind": "data",
+      "data": { <span class="hl">"id": "fc-4b1e"</span>,      <span class="c">// answers that exact call</span>
+                "name": "request_rate_approval",
+                "response": { "approved": true, "rate": 128,
+                              "valid_hours": 2, "by": "m.okafor" } },
+      "metadata": { "adk_type": <span class="hl">"function_response"</span> } } ] } }</pre>
+      </div>
+      <div class="wire">
+        <div class="wire-head"><b class="dir-c">← Acme's held resubscribe stream</b><span>no request sent, events just arrive</span></div>
+<pre>{ "kind": "status-update", "status": { "state": "working" } }
+{ "kind": "status-update",
+  "status": { "state": <span class="hl">"input-required"</span>,
+    "message": { "role": "agent", "parts": [ { "kind": "text", "text":
+      "EUR 128/pallet on Wed collection, valid 2h. Accept?" } ] } },
+  "final": true }</pre>
+      </div>
+      <p class="turn-note">
+        Two different parties on two different connections, and neither knows
+        about the other. The approval system resumed the task; Acme's
+        resubscribed stream received the consequences. <b>Whoever moves a task
+        and whoever watches it need not be the same process</b> — that is the
+        whole trick, and it is what makes hands-off hand-offs possible.
+      </p>
+    </div>
+    <div class="turn-state"><span class="lbl">task</span><span class="st st-wait">input-required</span></div>
+  </div>
+
+  <!-- ─────────── 06 ─────────── -->
+  <div class="turn" data-who="shipper">
+    <div class="turn-rail"><span class="turn-n">06</span><span class="turn-who">Shipper</span></div>
+    <div class="turn-body">
+      <p class="turn-say">
+        €128 clears Acme's own threshold. It accepts. Nordlane books the truck
+        and closes the negotiation.
+      </p>
+      <div class="wire">
+        <div class="wire-head"><b class="dir-c">← final SSE frames</b><span>the deal</span></div>
+<pre>{ "kind": "artifact-update",
+  "artifact": { "name": "booking-confirmation",
+    "parts": [ { "kind": "data", "data": {
+      "booking_ref": "NL-77213", "rate_eur_per_pallet": 128,
+      "collection": "2026-09-09T07:00+02:00", "pallets": 12 } } ] } }
+
+{ "kind": "status-update", "status": { "state": <span class="g">"completed"</span> },
+  "final": true }</pre>
+      </div>
+      <p class="turn-note">
+        The outcome comes back as an <b>artifact</b>, not as prose — a structured
+        deliverable Acme's systems can act on without parsing a sentence. And
+        <code>completed</code> is a <b>one-way door</b>: send another message on
+        <code>t-8f3c</code> now and it is refused. Further business means a new
+        task, reusing <code>contextId: c-a19b</code> so both sides know it is the
+        same relationship.
+      </p>
+    </div>
+    <div class="turn-state"><span class="lbl">task</span><span class="st st-deal">completed</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Epilogue: the carrier wants to reopen</h2>
+  <p class="sub">where the one-way rule finally bites</p>
+
+  <p>
+    Wednesday morning, a different customer cancels. Nordlane suddenly has an
+    empty half-truck on the exact lane and would happily do Acme's pallets at
+    €112 to fill it. It wants to offer.
+  </p>
+
+  <p>
+    <strong>It cannot.</strong> Nordlane has no way to reach Acme. It has been
+    the server all along; it has never held Acme's address, and A2A gives a
+    server no method to call a client. The commercially obvious move is
+    protocolically impossible — unless one of two things was arranged
+    <em>earlier</em>:
+  </p>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 740 268" role="img" aria-label="Diagram. During the negotiation, all calls went from Acme to Nordlane; Nordlane has no way to reach Acme. Two arrangements make an unprompted offer possible: Acme registers a webhook in advance, which Nordlane may POST to but only about a task that already exists; or Acme runs its own A2A server, letting Nordlane open a brand new task on Acme with the same context id, reversing the roles.">
+        <defs>
+          <marker id="e-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="e-ar-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0E6551"/>
+          </marker>
+        </defs>
+
+        <!-- during -->
+        <text x="16" y="24" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.6">DURING THE NEGOTIATION</text>
+        <rect x="16" y="38" width="150" height="46" rx="4" fill="none" stroke="#2E4396" stroke-width="1.6"/>
+        <text x="91" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12.5" fill="#2E4396">Acme</text>
+        <rect x="452" y="38" width="150" height="46" rx="4" fill="none" stroke="#0E6551" stroke-width="1.6"/>
+        <text x="527" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12.5" fill="#0E6551">Nordlane</text>
+        <line x1="166" y1="61" x2="448" y2="61" stroke="currentColor" stroke-width="1.5" marker-end="url(#e-ar)"/>
+        <text x="307" y="53" text-anchor="middle" font-family="Source Sans 3, sans-serif" font-size="11.5" fill="currentColor">all six turns, one direction</text>
+        <text x="622" y="58" font-family="Source Sans 3, sans-serif" font-size="11.5" fill="currentColor" opacity="0.7">Nordlane holds</text>
+        <text x="622" y="73" font-family="Source Sans 3, sans-serif" font-size="11.5" fill="currentColor" opacity="0.7">no way back</text>
+
+        <line x1="16" y1="106" x2="724" y2="106" stroke="currentColor" stroke-width="1" opacity="0.18"/>
+
+        <!-- option A -->
+        <text x="16" y="130" font-family="JetBrains Mono, monospace" font-size="11" fill="#0E6551">A · WEBHOOK REGISTERED IN ADVANCE</text>
+        <rect x="16" y="142" width="150" height="42" rx="4" fill="none" stroke="#2E4396" stroke-width="1.4"/>
+        <text x="91" y="168" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#2E4396">Acme hook URL</text>
+        <rect x="452" y="142" width="150" height="42" rx="4" fill="none" stroke="#0E6551" stroke-width="1.4"/>
+        <text x="527" y="168" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#0E6551">Nordlane</text>
+        <line x1="448" y1="163" x2="170" y2="163" stroke="#0E6551" stroke-width="1.8" marker-end="url(#e-ar-g)"/>
+        <text x="309" y="156" text-anchor="middle" font-family="Source Sans 3, sans-serif" font-size="11.5" fill="#0E6551">POST — but only about an existing task</text>
+        <text x="622" y="168" font-family="Source Sans 3, sans-serif" font-size="11.5" fill="currentColor" opacity="0.7">no new offers</text>
+
+        <!-- option B -->
+        <text x="16" y="212" font-family="JetBrains Mono, monospace" font-size="11" fill="#0E6551">B · ACME ALSO RUNS AN A2A SERVER</text>
+        <rect x="16" y="224" width="150" height="42" rx="4" fill="none" stroke="#2E4396" stroke-width="1.4"/>
+        <text x="91" y="250" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#2E4396">Acme /a2a</text>
+        <rect x="452" y="224" width="150" height="42" rx="4" fill="none" stroke="#0E6551" stroke-width="1.4"/>
+        <text x="527" y="250" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#0E6551">Nordlane</text>
+        <line x1="448" y1="245" x2="170" y2="245" stroke="#0E6551" stroke-width="2" marker-end="url(#e-ar-g)"/>
+        <text x="309" y="238" text-anchor="middle" font-family="Source Sans 3, sans-serif" font-size="11.5" fill="#0E6551">opens a NEW task — roles reverse</text>
+        <text x="622" y="245" font-family="Source Sans 3, sans-serif" font-size="11.5" fill="currentColor" opacity="0.7">same contextId</text>
+      </svg>
+    </div>
+    <figcaption>
+      A webhook only reports on a task that already exists — it cannot carry a
+      fresh proposal. To make an unprompted offer, Nordlane must become the
+      client of an Acme that is itself a server, opening a new task and reusing
+      the context id to tie it to the history.
+    </figcaption>
+  </figure>
+
+  <p>
+    So genuine two-way business between two agents needs both of them to be
+    servers, each acting as the other's client whenever it is the one with
+    something to say. "Peer" is not a property of an agent in A2A — it is
+    something you get by running both halves.
+  </p>
+</section>
+
+<section>
+  <h2>The six things to keep</h2>
+  <p class="sub">everything above, compressed</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>From turn</th><th>What to remember</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><strong>A task is a conversation, not a message.</strong> The negotiation gets one task id and keeps it until someone closes it.</td></tr>
+        <tr><td>3</td><td><strong>Continuing means sending <code>taskId</code>.</strong> Leave it out and you have silently started a second, unrelated negotiation.</td></tr>
+        <tr><td>2 vs 4</td><td><strong><code>input-required</code> just means "your move".</strong> Whether that is a question in words or a structured blocked call, you learn from the message parts, not the state.</td></tr>
+        <tr><td>pause</td><td><strong>A parked agent is not running.</strong> Whatever does the work has to call back into the agent's own endpoint to move the task. Nothing else can.</td></tr>
+        <tr><td>5</td><td><strong>Resumer and watcher are different roles.</strong> One party moves the task, another receives the events — which is exactly how unattended hand-offs work.</td></tr>
+        <tr><td>6 &amp; epilogue</td><td><strong>Terminal is a one-way door, and the server can never dial out.</strong> New business needs a new task, and an unprompted offer needs the other side to be a server too.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="note-label">One more, free of charge</span>
+    <p>
+      Anything the other side may need to act on later must be
+      <strong>data in the message</strong> — a booking ref, a quote id, an
+      expiry. Not state you are holding in a connection. Connections belong to
+      one hop and die with it; a quote id survives a restart, a reconnect and a
+      hand-off to a colleague's system.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <p>
+    The freight is invented; the wire shapes are not. Payloads follow the A2A
+    0.3 JSON-RPC form, and the <code>adk_type</code> / <code>adk_is_long_running</code>
+    metadata is exactly what <code>google-adk 2.8.0</code> emits on a paused
+    task — captured from two ADK agents talking over <code>a2a-sdk 1.1.2</code>.
+    Timings and rates are illustrative.
+  </p>
+</footer>
+
+</div>

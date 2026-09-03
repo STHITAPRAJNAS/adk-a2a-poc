@@ -282,12 +282,17 @@ Two documents go deeper:
 - **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — how *this repository* works: what
   `get_fast_api_app` mounts, how the agents are wired, what crosses a hop, and
   the two ADK sharp edges the wiring had to work around.
-- **[`docs/a2a-protocol-mechanics.md`](docs/a2a-protocol-mechanics.md)** — how
-  *A2A* works, independent of this code: the task state machine, what streaming,
-  the task store, the event queue and the push-notification store each do, why a
-  parked agent is not running, and therefore who has to wake it. Claims marked
-  **[verified]** were run against this stack, not read from docs. A styled
-  version sits alongside it as `docs/a2a-task-mechanics.html`.
+- **[`docs/a2a-negotiation-walkthrough.md`](docs/a2a-negotiation-walkthrough.md)**
+  — *start here if A2A is new to you.* One worked example, told turn by turn:
+  two agents negotiate a freight rate, one of them stops for a human, and the
+  wire traffic is shown at every step.
+- **[`docs/a2a-protocol-mechanics.md`](docs/a2a-protocol-mechanics.md)** — the
+  same ground as reference rather than story: the task state machine, what
+  streaming, the task store, the event queue and the push-notification store
+  each do, why a parked agent is not running, and therefore who has to wake it.
+  Claims marked **[verified]** were run against this stack, not read from docs.
+
+Both have a styled `.html` twin in `docs/` if you prefer reading them that way.
 
 ---
 

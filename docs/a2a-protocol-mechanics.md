@@ -9,7 +9,10 @@ Every claim marked **[verified]** below was exercised against the two agents in
 this repository, running as separate A2A services on localhost. The rest is read
 from the source of `google-adk` 2.8.0 and `a2a-sdk` 1.1.2.
 
-> A styled version of this document is in [`a2a-task-mechanics.html`](./a2a-task-mechanics.html).
+> A styled version of this document is in [`a2a-protocol-mechanics.html`](./a2a-protocol-mechanics.html).
+> For the same ideas told as a story instead of a reference, see
+> [`a2a-negotiation-walkthrough.md`](./a2a-negotiation-walkthrough.md) — two
+> agents haggling over a freight rate, turn by turn.
 
 **Contents**
 
