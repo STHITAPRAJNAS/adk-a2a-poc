@@ -8,6 +8,11 @@ does not work and why.
 Everything below is observable: `python scripts/a2a_probe.py run --approve`
 prints the wire trace, and `tests/test_a2a_protocol.py` asserts on it.
 
+For the protocol itself rather than this wiring of it — what streaming, the task
+store, the event queue and the push-notification store each do, and why "agent B
+notifies agent A when the job finishes" is not a thing A2A can do on its own —
+see [`docs/a2a-protocol-mechanics.md`](docs/a2a-protocol-mechanics.md).
+
 ---
 
 ## 1. The two processes

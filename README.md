@@ -277,9 +277,17 @@ tests/                         unit, agent cards, wire-level A2A, the two-hop
                                chain, and ADK-level end to end
 ```
 
-`ARCHITECTURE.md` explains the mechanism in detail: the task state machine, how
-a long-running tool becomes `input-required`, how a function response gets routed
-back onto the same task, and the two ADK sharp edges this PoC had to work around.
+Two documents go deeper:
+
+- **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — how *this repository* works: what
+  `get_fast_api_app` mounts, how the agents are wired, what crosses a hop, and
+  the two ADK sharp edges the wiring had to work around.
+- **[`docs/a2a-protocol-mechanics.md`](docs/a2a-protocol-mechanics.md)** — how
+  *A2A* works, independent of this code: the task state machine, what streaming,
+  the task store, the event queue and the push-notification store each do, why a
+  parked agent is not running, and therefore who has to wake it. Claims marked
+  **[verified]** were run against this stack, not read from docs. A styled
+  version sits alongside it as `docs/a2a-task-mechanics.html`.
 
 ---
 

@@ -1,0 +1,993 @@
+<title>A2A Task Mechanics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+  :root {
+    --paper:      #EEF2F5;
+    --surface:    #FFFFFF;
+    --surface-2:  #E4EAEF;
+    --ink:        #141A21;
+    --ink-soft:   #3D4954;
+    --muted:      #5F6D7B;
+    --rule:       #CFD8E0;
+    --rule-soft:  #DFE6EC;
+
+    --pause:      #9A5D06;   /* input-required: the state this page is about */
+    --pause-bg:   #F7E9CF;
+    --flow:       #0B6467;   /* working */
+    --flow-bg:    #D5E8E7;
+    --stop:       #973327;   /* failed */
+    --stop-bg:    #F3DCD7;
+    --done:       #2F6134;   /* completed */
+    --done-bg:    #DBE9DA;
+
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+
+    --measure: 68ch;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #12171C;
+      --surface:   #1A2027;
+      --surface-2: #232B34;
+      --ink:       #E1E8EE;
+      --ink-soft:  #BAC5D0;
+      --muted:     #8D9BA9;
+      --rule:      #303945;
+      --rule-soft: #262E38;
+
+      --pause:     #DCA43F;
+      --pause-bg:  #362B15;
+      --flow:      #4FB0B3;
+      --flow-bg:   #12312F;
+      --stop:      #DE8577;
+      --stop-bg:   #37211D;
+      --done:      #7FB585;
+      --done-bg:   #1B2C1D;
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:     #12171C;
+    --surface:   #1A2027;
+    --surface-2: #232B34;
+    --ink:       #E1E8EE;
+    --ink-soft:  #BAC5D0;
+    --muted:     #8D9BA9;
+    --rule:      #303945;
+    --rule-soft: #262E38;
+
+    --pause:     #DCA43F;
+    --pause-bg:  #362B15;
+    --flow:      #4FB0B3;
+    --flow-bg:   #12312F;
+    --stop:      #DE8577;
+    --stop-bg:   #37211D;
+    --done:      #7FB585;
+    --done-bg:   #1B2C1D;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 56px 0 22px;
+    margin-bottom: 44px;
+  }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(2.1rem, 5vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 1.12rem;
+    color: var(--ink-soft);
+    max-width: var(--measure);
+    margin: 0 0 22px;
+  }
+  .stackline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  .stackline span {
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 3px 8px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- sections ---------- */
+  section { margin: 0 0 60px; scroll-margin-top: 24px; }
+
+  h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.66rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--pause);
+    letter-spacing: 0.08em;
+    flex: none;
+    padding-top: 2px;
+  }
+  h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 1.06rem;
+    letter-spacing: -0.005em;
+    margin: 34px 0 8px;
+  }
+  .rule-under {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+  }
+
+  p, ul, ol { max-width: var(--measure); }
+  p { margin: 0 0 15px; }
+  ul, ol { margin: 0 0 15px; padding-left: 1.15em; }
+  li { margin: 0 0 7px; }
+  li::marker { color: var(--muted); }
+
+  strong { font-weight: 600; }
+  a { color: var(--flow); text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--pause);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.855em;
+    background: var(--surface-2);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  /* ---------- task-state chips: the page's core vocabulary ---------- */
+  .st {
+    font-family: var(--mono);
+    font-size: 0.78em;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .st-pause { background: var(--pause-bg); color: var(--pause); border-color: var(--pause); }
+  .st-flow  { background: var(--flow-bg);  color: var(--flow);  border-color: var(--flow); }
+  .st-done  { background: var(--done-bg);  color: var(--done);  border-color: var(--done); }
+  .st-stop  { background: var(--stop-bg);  color: var(--stop);  border-color: var(--stop); }
+  .st-idle  { background: var(--surface-2); color: var(--muted); border-color: var(--rule); }
+
+  /* ---------- verified marker ---------- */
+  .chk {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--flow);
+    border: 1px solid var(--flow);
+    border-radius: 2px;
+    padding: 1px 5px;
+    white-space: nowrap;
+    vertical-align: 1px;
+  }
+
+  /* ---------- wire blocks ---------- */
+  .wire {
+    margin: 22px 0;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .wire-head {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+    padding: 7px 14px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .wire-head b { color: var(--ink); font-weight: 600; }
+  .wire pre {
+    margin: 0;
+    padding: 14px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.9px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+  }
+  .wire pre .k { color: var(--flow); }
+  .wire pre .c { color: var(--muted); font-style: italic; }
+  .wire pre .hl { color: var(--pause); font-weight: 500; }
+
+  /* ---------- tables ---------- */
+  .tablewrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--rule); border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.6px; background: var(--surface); }
+  th, td { text-align: left; padding: 9px 13px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  thead th {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { background: transparent; padding: 0; }
+  .mono-col { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+
+  /* ---------- callouts ---------- */
+  .note {
+    margin: 22px 0;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--muted);
+    border-radius: 3px;
+  }
+  .note.key { border-left-color: var(--pause); background: var(--surface); }
+  .note.warn { border-left-color: var(--stop); }
+  .note > :last-child { margin-bottom: 0; }
+  .note-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 7px;
+    display: block;
+  }
+  .note.key .note-label { color: var(--pause); }
+  .note.warn .note-label { color: var(--stop); }
+
+  /* ---------- figures ---------- */
+  figure { margin: 30px 0; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--ink); }
+  .figframe {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--surface);
+    padding: 20px 18px 12px;
+    overflow-x: auto;
+  }
+  figcaption {
+    font-size: 13.6px;
+    color: var(--muted);
+    margin-top: 11px;
+    max-width: var(--measure);
+    line-height: 1.5;
+  }
+
+  /* ---------- the four-parts grid ---------- */
+  .parts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 24px 0;
+  }
+  .part { background: var(--surface); padding: 16px 17px; }
+  .part h4 {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.03em;
+    margin: 0 0 4px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .part .q {
+    font-size: 13px;
+    color: var(--pause);
+    margin: 0 0 9px;
+    font-style: italic;
+  }
+  .part p { font-size: 14.2px; margin: 0; color: var(--ink-soft); max-width: none; }
+
+  /* ---------- toc ---------- */
+  .toc {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--surface);
+    padding: 18px 20px;
+    margin: 0 0 52px;
+  }
+  .toc ol { margin: 0; padding-left: 0; list-style: none; max-width: none;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 3px 26px; }
+  .toc li { margin: 0; display: flex; gap: 10px; font-size: 14.6px; }
+  .toc .n { font-family: var(--mono); font-size: 12px; color: var(--pause); padding-top: 3px; flex: none; }
+  .toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid transparent; }
+  .toc a:hover { border-bottom-color: var(--muted); }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    margin-top: 68px;
+    padding-top: 20px;
+    font-size: 13.8px;
+    color: var(--muted);
+    max-width: var(--measure);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    a, summary { transition: color .15s ease, border-color .15s ease; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="kicker">Protocol deep dive · verified against a running stack</p>
+  <h1>How an A2A task pauses, and who wakes it up</h1>
+  <p class="standfirst">
+    A2A has no bidirectional call channel. Everything about long-running work,
+    human approval and “tell me when it’s done” is built out of four smaller
+    parts — a stream, a task store, an event queue and a push-notification
+    store — and out of one fact that surprises people: <strong>a paused agent
+    is not running.</strong>
+  </p>
+  <p class="stackline">
+    <span>google-adk 2.8.0</span>
+    <span>a2a-sdk 1.1.2</span>
+    <span>JSON-RPC over HTTP</span>
+    <span>claims marked <span class="chk">verified</span> were run, not read</span>
+  </p>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><span class="n">01</span><a href="#shape">The shape of the protocol</a></li>
+    <li><span class="n">02</span><a href="#methods">Methods and transports</a></li>
+    <li><span class="n">03</span><a href="#task">The task is the unit of state</a></li>
+    <li><span class="n">04</span><a href="#parts">The four moving parts</a></li>
+    <li><span class="n">05</span><a href="#park">How a long-running tool parks a task</a></li>
+    <li><span class="n">06</span><a href="#nobody">Nobody is watching</a></li>
+    <li><span class="n">07</span><a href="#wake">Three ways to learn it moved</a></li>
+    <li><span class="n">08</span><a href="#autonomous">Wiring a hands-off chain</a></li>
+    <li><span class="n">09</span><a href="#scale">What breaks at scale</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════════════════════ 01 ═══════════════════════════════ -->
+<section id="shape">
+  <h2><span class="num">01</span>The shape of the protocol</h2>
+  <div class="rule-under"></div>
+
+  <p>
+    A2A is ordinary HTTP. One side sends a request, the other answers. There is
+    no socket, no persistent duplex channel, no way for a server to call a
+    method on a client. Every A2A method in the spec is invoked
+    <em>client → server</em>.
+  </p>
+
+  <p>
+    So when people say A2A is “bidirectional”, they mean <strong>data flows
+    both ways</strong>, not that <em>calls</em> do. The asymmetry matters
+    enormously once work outlives a request, because it determines who has to
+    be a server for the news to travel.
+  </p>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 720 300" role="img" aria-label="All A2A method calls travel from client to server. Three return channels carry data back: the SSE response body while connected, a re-opened stream via tasks/resubscribe, and a webhook POST which is the only case where the server initiates the connection.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="ar-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#9A5D06"/>
+          </marker>
+        </defs>
+
+        <!-- boxes -->
+        <rect x="24" y="96" width="182" height="82" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="115" y="126" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="14" fill="currentColor">Agent A</text>
+        <text x="115" y="146" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity="0.62">A2A client</text>
+        <text x="115" y="163" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity="0.62">(and a server, for ③)</text>
+
+        <rect x="514" y="96" width="182" height="82" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="605" y="126" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="14" fill="currentColor">Agent B</text>
+        <text x="605" y="146" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity="0.62">A2A server</text>
+
+        <!-- outbound call -->
+        <line x1="206" y1="118" x2="512" y2="118" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+        <text x="359" y="110" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12" fill="currentColor">every method call — A always initiates</text>
+
+        <!-- return 1 -->
+        <line x1="512" y1="150" x2="208" y2="150" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+        <text x="359" y="167" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12" fill="currentColor">① SSE frames, inside that same response body</text>
+
+        <!-- return 2 -->
+        <path d="M 206 214 L 359 214 L 512 214" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+        <text x="359" y="206" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12" fill="currentColor">② tasks/resubscribe — A re-opens the stream later</text>
+
+        <!-- return 3: webhook -->
+        <path d="M 512 258 L 359 258 L 206 258" fill="none" stroke="#9A5D06" stroke-width="2" marker-end="url(#ar-p)"/>
+        <text x="359" y="278" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12" fill="#9A5D06">③ webhook POST — the only call B initiates</text>
+
+        <text x="24" y="42" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="currentColor" opacity="0.55">CALLS</text>
+        <line x1="70" y1="38" x2="696" y2="38" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+        <text x="24" y="62" font-family="IBM Plex Sans, sans-serif" font-size="12" fill="currentColor" opacity="0.7">one direction only, except ③</text>
+      </svg>
+    </div>
+    <figcaption>
+      Three return channels, one of which inverts the roles. ③ is the only
+      mechanism where B opens a connection to A — which means A must itself be
+      reachable as a server for push notifications to be an option at all.
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ═══════════════════════════════ 02 ═══════════════════════════════ -->
+<section id="methods">
+  <h2><span class="num">02</span>Methods and transports</h2>
+  <div class="rule-under"></div>
+
+  <p>
+    The endpoint ADK mounts answers <strong>both JSON-RPC generations on one
+    URL</strong> <span class="chk">verified</span>. The 0.3 method names go
+    through a compatibility adapter; the 1.x proto-JSON names hit the handler
+    directly. Payload shapes differ — 0.3 uses <code>"role": "user"</code> and
+    <code>kind</code> discriminators, 1.x uses <code>"role": "ROLE_USER"</code>
+    and proto enums — and sending one generation’s shape to the other’s method
+    name is an <code>Invalid Request</code>.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>0.3 name</th><th>1.x name</th><th>Response</th><th>What it is for</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono-col">message/send</td><td class="mono-col">SendMessage</td><td>JSON</td><td>Blocks until the task reaches a stable state; returns the whole Task.</td></tr>
+        <tr><td class="mono-col">message/stream</td><td class="mono-col">SendStreamingMessage</td><td>SSE</td><td>Same work, delivered as it happens.</td></tr>
+        <tr><td class="mono-col">tasks/get</td><td class="mono-col">GetTask</td><td>JSON</td><td>Read current state and history from the task store.</td></tr>
+        <tr><td class="mono-col">tasks/cancel</td><td class="mono-col">CancelTask</td><td>JSON</td><td>Request cancellation.</td></tr>
+        <tr><td class="mono-col">tasks/resubscribe</td><td class="mono-col">SubscribeToTask</td><td>SSE</td><td>Re-attach a stream to a task already in flight.</td></tr>
+        <tr><td class="mono-col">tasks/pushNotificationConfig/set</td><td class="mono-col">CreateTaskPushNotificationConfig</td><td>JSON</td><td>Register a webhook for this task.</td></tr>
+        <tr><td class="mono-col">…/get · …/list · …/delete</td><td class="mono-col">Get… · List… · Delete…</td><td>JSON</td><td>Manage those registrations.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Discovery is a plain <code>GET</code> of the Agent Card at
+    <code>/.well-known/agent-card.json</code>. The card is not documentation —
+    it is <strong>enforced</strong>. Push-notification methods are rejected
+    outright unless the card declares <code>capabilities.pushNotifications:
+    true</code> <span class="chk">verified</span>, and ADK’s client validates
+    that a card’s RPC URLs are HTTPS (or loopback HTTP) and same-origin with
+    where the card was fetched.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════ 03 ═══════════════════════════════ -->
+<section id="task">
+  <h2><span class="num">03</span>The task is the unit of state</h2>
+  <div class="rule-under"></div>
+
+  <p>
+    A <em>message</em> is transient. A <strong>task</strong> is the durable
+    thing: an id, a context id, a status, a message history and any artifacts.
+    Everything long-running hangs off it. Its states:
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>State</th><th>Terminal</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><span class="st st-idle">submitted</span></td><td>no</td><td>Accepted, agent not started.</td></tr>
+        <tr><td><span class="st st-flow">working</span></td><td>no</td><td>Agent running. Every intermediate event streams under this.</td></tr>
+        <tr><td><span class="st st-pause">input-required</span></td><td>no</td><td>Agent stopped and needs something from the caller.</td></tr>
+        <tr><td><span class="st st-pause">auth-required</span></td><td>no</td><td>Same, specifically for credentials.</td></tr>
+        <tr><td><span class="st st-done">completed</span></td><td><strong>yes</strong></td><td>Finished. Accepts no further input, ever.</td></tr>
+        <tr><td><span class="st st-stop">failed</span> <span class="st st-stop">rejected</span></td><td><strong>yes</strong></td><td>Errored or refused.</td></tr>
+        <tr><td><span class="st st-stop">canceled</span></td><td><strong>yes</strong></td><td>Cancelled.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Two properties do most of the work in a multi-agent system. First,
+    <strong>terminal means terminal</strong> — a completed task rejects any
+    later message with <code>Task … is in terminal state</code>
+    <span class="chk">verified</span>. Second, <strong>a task never crosses a
+    hop</strong>. If A calls B, A’s caller created task α on A, and A’s client
+    created a separate task β on B. Two ids, two stores, two lifecycles,
+    correlated only by metadata the middle agent stamps on its events.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════ 04 ═══════════════════════════════ -->
+<section id="parts">
+  <h2><span class="num">04</span>The four moving parts</h2>
+  <div class="rule-under"></div>
+
+  <p>
+    These are separate components with separate lifetimes, and confusing them
+    is the source of most “why didn’t my agent get notified” bugs. Each answers
+    a different question.
+  </p>
+
+  <div class="parts">
+    <div class="part">
+      <h4>SSE stream</h4>
+      <p class="q">What is happening right now?</p>
+      <p>The response body of <code>message/stream</code>. Frames arrive as they are produced. Ends when a frame carries <code>final: true</code>. Scoped to one HTTP connection — drop it and you have lost the live view, though not the work.</p>
+    </div>
+    <div class="part">
+      <h4>Task store</h4>
+      <p class="q">What is true?</p>
+      <p>The durable record: status, full message history, artifacts. What <code>tasks/get</code> reads. Defaults to in-memory; <code>DatabaseTaskStore</code> makes it survive a restart, wired via <code>task_store_uri</code>.</p>
+    </div>
+    <div class="part">
+      <h4>Queue manager</h4>
+      <p class="q">Who else is listening?</p>
+      <p>An in-memory event queue per live task, fanned out to every attached consumer. Rarely discussed and easy to miss — but it is the entire reason <code>tasks/resubscribe</code> can work.</p>
+    </div>
+    <div class="part">
+      <h4>Push config store <span style="color:var(--muted);font-weight:400">+ sender</span></h4>
+      <p class="q">Where do I shout when this changes?</p>
+      <p>The store holds registered webhook URLs. The <em>sender</em> is a separate object that actually POSTs to them. Two pieces — and you need both.</p>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="note-label">Verified gap in ADK 2.8.0</span>
+    <p>
+      ADK constructs the request handler with a <code>push_config_store</code>
+      but <strong>never passes a <code>push_sender</code></strong> — the string
+      <code>PushNotificationSender</code> does not appear anywhere in the
+      <code>google.adk</code> package. The observable result: with
+      <code>pushNotifications: true</code> on the card,
+      <code>tasks/pushNotificationConfig/set</code> succeeds and the config
+      reads back from <code>…/get</code> — and <strong>zero webhook deliveries
+      ever arrive</strong> <span class="chk">verified</span>. Registration
+      succeeding is not evidence that delivery works. Test the webhook, not the
+      registration.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ 05 ═══════════════════════════════ -->
+<section id="park">
+  <h2><span class="num">05</span>How a long-running tool parks a task</h2>
+  <div class="rule-under"></div>
+
+  <p>
+    There is no separate HITL protocol, and no “long-running” message type.
+    There is one rule, applied in ADK’s A2A executor when the agent run ends:
+  </p>
+
+  <div class="wire">
+    <div class="wire-head"><b>google/adk/a2a/executor/a2a_agent_executor_impl.py</b><span>terminal event selection</span></div>
+<pre><span class="c"># after the ADK run finishes</span>
+<span class="k">if</span> error_event:                                    final = error_event
+<span class="k">elif</span> long_running_functions.has_long_running_function_calls():
+                                                 final = <span class="hl">&lt;input-required&gt;</span>
+<span class="k">else</span>:                                            final = &lt;completed&gt;</pre>
+  </div>
+
+  <p>
+    That is the whole mechanism. A tool marked
+    <code>LongRunningFunctionTool</code> returns a pending value; ADK records
+    its call id in <code>long_running_tool_ids</code>; the executor sees an
+    unanswered long-running call and ends the task
+    <span class="st st-pause">input-required</span> instead of
+    <span class="st st-done">completed</span>. Human approval and background
+    jobs are the same mechanism wearing different clothes.
+  </p>
+
+  <p>
+    The pending call travels outward as a <strong>DataPart</strong>, not as
+    prose. This is the contract a caller has to read:
+  </p>
+
+  <div class="wire">
+    <div class="wire-head"><b>← final SSE frame</b><span>status-update · state input-required</span></div>
+<pre>{
+  "kind": "status-update",
+  "taskId": "97a9ce53-…",
+  "status": {
+    "state": <span class="hl">"input-required"</span>,
+    "message": { "role": "agent", "parts": [ {
+      "kind": "data",
+      "data": { "id": <span class="hl">"fc-1a5cd0aca320"</span>,
+                "name": "request_change_approval",
+                "args": { "service": "checkout-api", "risk": "high" } },
+      "metadata": { "adk_type": "function_call",
+                    <span class="hl">"adk_is_long_running": true</span> }
+    } ] }
+  }
+}</pre>
+  </div>
+
+  <p>Resuming means answering that exact call id, on that exact task:</p>
+
+  <div class="wire">
+    <div class="wire-head"><b>→ message/stream</b><span>the resume</span></div>
+<pre>{ "message": {
+    "role": "user",
+    <span class="hl">"taskId": "97a9ce53-…"</span>,          <span class="c">// same task, or you start a new one</span>
+    "parts": [ {
+      "kind": "data",
+      "data": { <span class="hl">"id": "fc-1a5cd0aca320"</span>,   <span class="c">// same call id</span>
+                "name": "request_change_approval",
+                "response": { "approved": true, "decided_by": "papu" } },
+      "metadata": { <span class="hl">"adk_type": "function_response"</span> }
+    } ] } }</pre>
+  </div>
+
+  <div class="note warn">
+    <span class="note-label">The trap</span>
+    <p>
+      Replying to a parked task with ordinary text does <em>not</em> error and
+      does <em>not</em> resume the gate. ADK simply runs the agent again with
+      that text as input; no new long-running call is issued, so the task
+      reaches <span class="st st-done">completed</span> with the approval never
+      recorded — and the correct function response afterwards is refused
+      because the task is now terminal <span class="chk">verified</span>. It
+      looks like it worked: a message went in, the agent replied, the task went
+      green. Nothing was approved.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ 06 ═══════════════════════════════ -->
+<section id="nobody">
+  <h2><span class="num">06</span>Nobody is watching</h2>
+  <div class="rule-under"></div>
+
+  <p>
+    Here is the part that answers your question, and it is not a protocol
+    feature — it is an absence.
+  </p>
+
+  <div class="note key">
+    <span class="note-label">The load-bearing fact</span>
+    <p>
+      When a task parks in <span class="st st-pause">input-required</span>, the
+      agent run has <strong>ended</strong>. The generator is closed, the
+      coroutine is gone. There is no thread inside agent B watching the
+      deployment job, no timer, no callback registered anywhere. From B’s point
+      of view <em>nothing is happening</em>.
+    </p>
+  </div>
+
+  <p>
+    So “the second agent notifies the first when it’s done” cannot work the way
+    the phrasing suggests. B is not going to notice completion, because B is not
+    executing. Push notifications don’t help either: a webhook fires on a
+    <em>task state change</em>, and a parked task has no state change to report
+    until somebody causes one.
+  </p>
+
+  <p>
+    Which reframes the problem correctly. There are two independent questions,
+    and they need two different answers:
+  </p>
+
+  <ol>
+    <li><strong>Who moves the task off <span class="st st-pause">input-required</span>?</strong> Whatever is actually doing the work must call back in. Nothing else can.</li>
+    <li><strong>How does the caller find out it moved?</strong> That is where streaming, resubscribe and webhooks come in.</li>
+  </ol>
+
+  <p>
+    The answer to (1) is the <strong>worker-as-A2A-client</strong> pattern: the
+    background job holds the task id, the context id and the pending call id,
+    and on completion it POSTs a function response to the <em>same agent’s own
+    A2A endpoint</em>. The agent that parked the task is woken by an ordinary
+    inbound A2A call, exactly as if a human had answered — no privileged path,
+    no framework support required.
+  </p>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 760 400" role="img" aria-label="Sequence diagram. The caller sends a request to agent B, which starts a background job and parks its task in input-required, ending the stream. The caller then resubscribes and waits. When the job finishes, the worker itself POSTs a function response into agent B's own A2A endpoint, which resumes the task; the resubscribed caller receives the completion events without polling.">
+        <defs>
+          <marker id="s-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="s-ar-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#9A5D06"/>
+          </marker>
+        </defs>
+
+        <!-- lifelines -->
+        <g font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor">
+          <rect x="20" y="16" width="118" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <text x="79" y="34" text-anchor="middle">Caller</text>
+          <rect x="300" y="16" width="140" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <text x="370" y="34" text-anchor="middle">Agent B</text>
+          <rect x="600" y="16" width="140" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <text x="670" y="34" text-anchor="middle">Job worker</text>
+        </g>
+        <line x1="79"  y1="46" x2="79"  y2="384" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+        <line x1="370" y1="46" x2="370" y2="384" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+        <line x1="670" y1="46" x2="670" y2="384" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+
+        <g font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor">
+          <!-- 1 request -->
+          <line x1="79" y1="72" x2="366" y2="72" stroke="currentColor" stroke-width="1.4" marker-end="url(#s-ar)"/>
+          <text x="222" y="65" text-anchor="middle">message/stream</text>
+
+          <!-- 2 start job -->
+          <line x1="370" y1="106" x2="666" y2="106" stroke="currentColor" stroke-width="1.4" marker-end="url(#s-ar)"/>
+          <text x="518" y="99" text-anchor="middle">start job, return handle at once</text>
+
+          <!-- 3 park -->
+          <line x1="366" y1="140" x2="83" y2="140" stroke="#9A5D06" stroke-width="1.8" marker-end="url(#s-ar-p)"/>
+          <text x="222" y="133" text-anchor="middle" fill="#9A5D06">input-required · final:true — stream closes</text>
+
+          <!-- agent B idle band -->
+          <rect x="352" y="150" width="36" height="112" fill="currentColor" opacity="0.07"/>
+          <text x="370" y="212" text-anchor="middle" font-size="10.5" opacity="0.65" transform="rotate(-90 370 212)">B not running</text>
+
+          <!-- worker busy band -->
+          <rect x="662" y="118" width="16" height="150" fill="#9A5D06" opacity="0.28"/>
+
+          <!-- 4 resubscribe -->
+          <path d="M 79 186 L 366 186" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#s-ar)"/>
+          <text x="222" y="179" text-anchor="middle">tasks/resubscribe — attach and block</text>
+          <rect x="71" y="196" width="16" height="150" fill="currentColor" opacity="0.12"/>
+          <text x="79" y="270" text-anchor="middle" font-size="10.5" opacity="0.65" transform="rotate(-90 79 270)">waiting</text>
+
+          <!-- 5 worker callback -->
+          <line x1="666" y1="286" x2="374" y2="286" stroke="#9A5D06" stroke-width="2" marker-end="url(#s-ar-p)"/>
+          <text x="520" y="279" text-anchor="middle" fill="#9A5D06">message/send · function_response on the same taskId</text>
+
+          <!-- 6 B resumes -->
+          <rect x="352" y="296" width="36" height="34" fill="#0B6467" opacity="0.2"/>
+          <text x="370" y="318" text-anchor="middle" font-size="10.5">runs</text>
+
+          <!-- 7 events to watcher -->
+          <line x1="366" y1="352" x2="83" y2="352" stroke="currentColor" stroke-width="1.4" marker-end="url(#s-ar)"/>
+          <text x="222" y="345" text-anchor="middle">working → completed, down the open stream</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      The completion travels inward, not outward. The worker wakes agent B with
+      an ordinary A2A call; only then does B have news, and the caller —
+      already re-attached — receives it with no polling and no human.
+      Verified end to end: a watcher that sent nothing received every event
+      produced by a separate connection’s resume.
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ═══════════════════════════════ 07 ═══════════════════════════════ -->
+<section id="wake">
+  <h2><span class="num">07</span>Three ways to learn it moved</h2>
+  <div class="rule-under"></div>
+
+  <p>
+    Given something <em>will</em> move the task, the caller has three options.
+    They are not interchangeable.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Mechanism</th><th>Caller must be</th><th>Survives</th><th>Cost</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Hold the stream</strong><br><span style="color:var(--muted);font-size:13px">the original <code>message/stream</code></span></td>
+          <td>A client</td>
+          <td>Nothing — it already closed when the task parked</td>
+          <td>Free, but unavailable: <code>final: true</code> ended it</td>
+        </tr>
+        <tr>
+          <td><strong>Re-attach</strong><br><span style="color:var(--muted);font-size:13px"><code>tasks/resubscribe</code></span></td>
+          <td>A client</td>
+          <td>Client restarts, network blips</td>
+          <td>One held connection per waiting task; dies if the <em>server</em> restarts</td>
+        </tr>
+        <tr>
+          <td><strong>Webhook</strong><br><span style="color:var(--muted);font-size:13px"><code>pushNotificationConfig/set</code></span></td>
+          <td><strong>A server</strong></td>
+          <td>Both sides restarting, arbitrary delays</td>
+          <td>Needs a reachable HTTPS endpoint, auth, and SSRF protection</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>What resubscribe actually does</h3>
+  <p>
+    It yields the current <code>Task</code> as its first frame, then attaches an
+    <code>EventConsumer</code> to the task’s live queue and streams everything
+    subsequently produced — <em>by anyone</em>. That last part is the useful bit:
+    the party who resumes a task and the party who watches it need not be the
+    same process.
+  </p>
+
+  <div class="wire">
+    <div class="wire-head"><b>Observed</b><span>watcher and resumer on separate connections</span></div>
+<pre>WATCHER  tasks/resubscribe  →  <span class="c">task, state=input-required</span>
+                               <span class="c">: ping … : ping …</span>      <span class="c">← keep-alive, holding</span>
+RESUMER  <span class="c">(different connection)</span> message/stream, function_response
+WATCHER                     →  status-update  <span class="k">working</span>
+WATCHER                     →  status-update  <span class="k">working</span>
+WATCHER                     →  status-update  <span class="hl">input-required</span>   <span class="c">← next gate</span></pre>
+  </div>
+
+  <p>
+    Two limits are worth knowing before you build on it. Resubscribe raises
+    <code>UnsupportedOperationError</code> on a task already in a terminal
+    state — so a completion that lands during your reconnect window is missed,
+    and you must fall back to <code>tasks/get</code>. And it depends on the
+    in-memory queue, which the SDK’s own docstring says
+    <em>“requires all incoming interactions for a given task ID to hit the same
+    binary instance.”</em> It survived a 20-second gap in testing
+    <span class="chk">verified</span>, but it will not survive a process restart
+    or a load balancer sending the next request elsewhere.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════ 08 ═══════════════════════════════ -->
+<section id="autonomous">
+  <h2><span class="num">08</span>Wiring a hands-off chain</h2>
+  <div class="rule-under"></div>
+
+  <p>
+    Putting it together, here is what a genuinely unattended long-running
+    hand-off needs. Some of it ADK gives you; some of it is yours to write, and
+    it is worth being clear about which.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Piece</th><th>Who provides it</th></tr></thead>
+      <tbody>
+        <tr><td>Task parks on an unanswered long-running call</td><td>ADK, automatically</td></tr>
+        <tr><td>Pending call travels outward as a tagged DataPart</td><td>ADK, automatically</td></tr>
+        <tr><td>Pause mirrors outward across each additional hop</td><td>ADK, automatically — the same rule reapplied per hop</td></tr>
+        <tr><td>Worker knows its task id, context id and call id</td><td><strong>You.</strong> <code>ToolContext.function_call_id</code> gives the call id; the task id needs an <code>ExecuteInterceptor</code> or a custom request converter</td></tr>
+        <tr><td>Worker calls back into the agent’s own A2A endpoint</td><td><strong>You.</strong> A few lines of HTTP in the job’s completion path</td></tr>
+        <tr><td>Webhooks actually delivered</td><td><strong>You.</strong> Attach a <code>BasePushNotificationSender</code>; ADK wires none</td></tr>
+        <tr><td>Card declares <code>pushNotifications: true</code></td><td><strong>You.</strong> Without it the methods are rejected</td></tr>
+        <tr><td>An outer agent subscribes to its downstream task</td><td><strong>You.</strong> <code>RemoteA2aAgent</code> neither registers a push config nor resubscribes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    That last row is the honest limit today. ADK’s client happily surfaces a
+    downstream pause to its own caller, but it does not watch the downstream
+    task afterwards. So in a two-hop chain, the bridge that notices β finished
+    and answers α is a component you write — an inbound webhook route, or a
+    resubscribe loop — sitting beside the agent rather than inside it.
+  </p>
+
+  <div class="note key">
+    <span class="note-label">Design rule that falls out of all this</span>
+    <p>
+      Anything a downstream agent wants an eventual caller to act on must be
+      <strong>data in a tool result</strong> — a job id, a poll URL, a ticket
+      number — never state held in a connection. Handles are portable across
+      hops and restarts; streams are not. A caller three hops away can act on a
+      job id it was handed. It can do nothing at all with a socket that closed.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ 09 ═══════════════════════════════ -->
+<section id="scale">
+  <h2><span class="num">09</span>What breaks at scale</h2>
+  <div class="rule-under"></div>
+
+  <ul>
+    <li>
+      <strong>Sticky routing is mandatory for streaming.</strong> The queue
+      manager is per-process. Two replicas behind a round-robin load balancer
+      will resubscribe to the wrong instance and get <code>TaskNotFound</code>.
+      Route by task id, or accept that only <code>tasks/get</code> and webhooks
+      work.
+    </li>
+    <li>
+      <strong>Default stores lose everything on restart.</strong> Tasks, push
+      configs and sessions are all in-memory unless you point
+      <code>task_store_uri</code> and <code>session_service_uri</code> at real
+      storage. A parked approval that vanishes on deploy is a silent data-loss
+      bug wearing a restart’s clothes.
+    </li>
+    <li>
+      <strong>Webhook URLs are an SSRF vector.</strong> They arrive in a request
+      body from a caller. Validate against a registry; never POST to whatever
+      you were handed.
+    </li>
+    <li>
+      <strong>Tokens outlive nothing; tasks outlive everything.</strong> A task
+      parked for a day and resumed with a credential minted yesterday is a
+      decision you have to make deliberately. A2A declares
+      <code>securitySchemes</code> on the card but implements no auth and
+      defines no authorization model — entitlement is entirely yours, and it
+      has to be pinned before the planner runs, since an agent often discovers
+      which tools it needs only after accepting the task.
+    </li>
+    <li>
+      <strong>Cancellation is a request, not a guarantee.</strong>
+      <code>tasks/cancel</code> asks. Whether the background job the tool
+      started actually stops is between you and your queue.
+    </li>
+  </ul>
+</section>
+
+<footer>
+  <p>
+    Every claim marked <span class="chk">verified</span> was exercised against
+    two ADK agents running as separate A2A services on localhost —
+    <code>google-adk 2.8.0</code>, <code>a2a-sdk 1.1.2</code>, Python 3.11.
+    ADK’s A2A surface carries <code>@a2a_experimental</code>; pin it, and expect
+    the executor internals cited here to move between minors.
+  </p>
+</footer>
+
+</div>
