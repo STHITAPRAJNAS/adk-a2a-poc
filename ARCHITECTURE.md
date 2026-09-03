@@ -12,9 +12,20 @@ prints the wire trace, and `tests/test_a2a_protocol.py` asserts on it.
 
 ## 1. The two processes
 
-Both servers come from the same wrapper, `google.adk.cli.fast_api.get_fast_api_app`.
+Both servers come from the same wrapper,
+`google.adk.cli.fast_api.get_fast_api_app`, and **both pass `a2a=True`**. That
+matters: an agent in a real network is rarely only a client or only a server. It
+is a service other agents call, which in turn calls the services it depends on.
+Every interesting property of A2A — task identity, pause and resume, error
+propagation — has to survive being chained, and none of it gets exercised until
+an agent sits on both sides of the protocol.
 
-**Remote — `servers/remote_agent_server.py`, port 8001, `a2a=True`.**
+```
+caller ──A2A──► ops_concierge :8000 ──A2A──► deployment_agent :8001
+                server + client              server
+```
+
+**Specialist — `servers/remote_agent_server.py`, port 8001.**
 With that flag ADK scans `agents_dir` and, for every directory containing an
 `agent.json`, attaches two routes:
 
@@ -32,9 +43,15 @@ Under the hood ADK builds an `A2aAgentExecutor` per agent, wraps it in the
 a2a-sdk's `DefaultRequestHandler` with a task store, and mounts the SDK's
 JSON-RPC routes at that prefix.
 
-**Client — `servers/orchestrator_server.py`, port 8000, `a2a=False`.**
-No A2A routes; this side *consumes*. The hop lives inside the agent, in
-`RemoteA2aAgent`.
+**Front door — `servers/orchestrator_server.py`, port 8000.**
+Same wrapper, same flag, its own `agent.json`, so it is reachable at
+`/a2a/ops_concierge` by any A2A client. It is *also* a client: the outbound hop
+lives inside the agent, in `RemoteA2aAgent`. It holds no domain tools at all —
+its entire job is routing and relaying.
+
+The `/dev-ui` and `/run_sse` surfaces sit on the same app. A browser drives the
+agent over HTTP; another agent drives the same agent over A2A; both reach the
+same `Runner` and the same session store.
 
 ---
 
@@ -155,7 +172,78 @@ green — while the approval was never recorded.
 
 ---
 
-## 5. Long-running work versus slow work
+## 5. Chaining: what crosses a hop and what does not
+
+This is the part a single client/server pair cannot show, and it is the reason
+the concierge is an A2A server too.
+
+Run `python scripts/a2a_chain_probe.py run` and the caller sees:
+
+```
+turn 1  states           submitted → working → input-required
+        this hop's task  88daa805-…
+        downstream task  7d7c4db4-…        ← a different task, one hop further in
+        ⏸ pending call   request_change_approval (fc-1394…)
+```
+
+### Each hop owns its own task
+
+Nothing in A2A shares a task across a hop. The caller's request to
+`ops_concierge` creates task A on port 8000; the concierge's `RemoteA2aAgent`
+creates task B on port 8001. Two ids, two task stores, two independent
+lifecycles. They are correlated only because ADK stamps `a2a:task_id` and
+`a2a:context_id` onto the event metadata of the agent that made the downstream
+call — which is how the probe can print both, and how a follow-up turn finds
+task B again.
+
+That is a property, not an accident. Task B can fail, be cancelled, or be
+retried without task A knowing, and an operator on port 8001 sees a task whose
+history is exactly what that agent was asked to do — not a slice of somebody
+else's conversation.
+
+### A pause mirrors outward
+
+The concierge's own task cannot complete while its downstream task is parked,
+and the reason is the same rule that parked the downstream one. When
+`RemoteA2aAgent` receives task B in `input-required`, it converts the pending
+long-running call back into a real ADK `FunctionCall` with its id in
+`long_running_tool_ids`. That event flows through the concierge's *own*
+`A2aAgentExecutor`, whose `LongRunningFunctions.process_event` sees an
+unanswered long-running call and therefore ends task A in `input-required` too,
+carrying the same pending call outward.
+
+The same rule, applied once per hop. Add a third agent and the pause propagates
+three hops out for free.
+
+### A resume forwards inward
+
+The caller answers task A with a function-response DataPart. The concierge's
+runner routes it to `RemoteA2aAgent` (see §6 — this is where the
+`TransferableRemoteA2aAgent` fix earns its keep), which stamps task B's id on a
+new A2A message and forwards it. Both tasks move to `working`.
+
+`test_the_same_flow_costs_the_caller_the_same_turns_either_way` in
+`tests/test_a2a_chain.py` pins the consequence: entering at the front door and
+entering at the specialist take the caller through the same pauses in the same
+order. **An A2A hop is transparent to whoever is driving.** That is the property
+that makes composing agents worth doing, and the one most worth regression
+testing.
+
+### Handles are portable, connections are not
+
+`start_deployment` mints a job id and a `poll_url` two hops in. Both travel
+outward in the tool result, so the caller — which never spoke to
+`deployment_agent` — can poll that URL directly and hand the terminal result
+back through the front door. `test_caller_completes_the_whole_chain_without_
+addressing_hop_two` asserts exactly that.
+
+The general rule: anything a downstream agent wants an eventual caller to act on
+must be *data in a tool result*, not state held in a connection. A streaming
+connection belongs to one hop and dies with it.
+
+---
+
+## 6. Long-running work versus slow work
 
 The PoC deliberately contains both, because they look different on the wire and
 people conflate them.
@@ -183,7 +271,7 @@ purely from the task state.
 
 ---
 
-## 6. Two sharp edges
+## 7. Two sharp edges
 
 Both cost real debugging time, so they are documented rather than silently
 patched.
@@ -231,7 +319,7 @@ stays on plain `transfer_to_agent` delegation for that reason.
 
 ---
 
-## 7. Task state reference
+## 8. Task state reference
 
 | State (0.3 / 1.x) | When ADK emits it |
 |---|---|
@@ -249,12 +337,19 @@ Priority when several updates land in one run is set by
 
 ---
 
-## 8. Extending it
+## 9. Extending it
 
-- **Add a third agent.** Give it a directory under `remote_agents/` with an
-  `agent.json` and it is exposed automatically — `get_fast_api_app` mounts every
-  directory that has a card. Add a second `TransferableRemoteA2aAgent` to the
-  concierge's `sub_agents`.
+- **Add a third agent.** Give it a directory with an `agent.json` and
+  `get_fast_api_app(a2a=True)` exposes it automatically — the scan mounts every
+  directory under `agents_dir` that carries a card. Point a second
+  `TransferableRemoteA2aAgent` at it from whichever agent should delegate to it.
+  Nothing about the pause-and-resume mechanics changes; §5 applies once per hop.
+  Two things do get harder past a couple of agents: **discovery**, where hard-
+  coded URLs in `.env` should become a registry that serves Agent Cards so an
+  agent can move or scale without its callers being edited; and **cycles**,
+  which this PoC has none of and no protection against — A2A does not stop
+  agent A delegating to B delegating back to A, so a network that is a graph
+  rather than a line needs a hop budget or a call-path check.
 - **Authenticate the hop.** Client side, pass
   `config=A2aRemoteAgentConfig(request_interceptors=[...])` to attach a
   per-invocation token. Server side, pass an `A2aAgentExecutorConfig` carrying

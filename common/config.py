@@ -77,6 +77,20 @@ class Settings:
         return f"http://{self.remote_agent_host}:{self.remote_agent_port}"
 
     @property
+    def orchestrator_rpc_url(self) -> str:
+        """The concierge's own A2A JSON-RPC endpoint.
+
+        The concierge is an A2A peer, not just a client: other agents (and the
+        chain probe) reach it here, and it reaches the deployment agent at
+        ``deployment_agent_rpc_url``.
+        """
+        return f"{self.orchestrator_base_url}/a2a/{ORCHESTRATOR_APP_NAME}"
+
+    @property
+    def orchestrator_card_url(self) -> str:
+        return f"{self.orchestrator_rpc_url}/.well-known/agent-card.json"
+
+    @property
     def deployment_agent_rpc_url(self) -> str:
         """The A2A JSON-RPC endpoint ``get_fast_api_app(a2a=True)`` mounts.
 

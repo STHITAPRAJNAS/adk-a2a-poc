@@ -1,14 +1,21 @@
 """Orchestrator server for the ops concierge (default port 8000).
 
-Built with ``get_fast_api_app(..., web=True)``. This is the chat/UI layer:
+Built with ``get_fast_api_app(..., web=True, a2a=True)``, which makes this agent
+an A2A **peer**: a server to whoever calls it, and a client of the
+release-operations agent it delegates to.
 
-  ``GET  /dev-ui?app=ops_concierge``  ADK Dev UI — the chat surface
-  ``POST /run_sse``                   streaming run endpoint the UI (and the
-                                      demo client) drives
-  ``POST /apps/{app}/users/{u}/sessions``  session management
+  ``GET  /dev-ui?app=ops_concierge``                  ADK Dev UI — the chat surface
+  ``POST /run_sse``                                   streaming run endpoint
+  ``POST /a2a/ops_concierge``                         A2A JSON-RPC endpoint
+  ``GET  /a2a/ops_concierge/.well-known/agent-card.json``  this agent's own card
 
-No ``a2a=True`` here: this side is an A2A *client*. The A2A hop happens inside
-the agent, in ``RemoteA2aAgent``.
+Serving both halves on one process is the shape a real deployment has. An agent
+is rarely only a client or only a server: it is a service that other agents call,
+which in turn calls the services it depends on. Everything interesting about A2A
+— task ids, pause and resume, error propagation — has to survive being chained,
+and it only gets exercised once an agent is on both sides of the protocol.
+
+``scripts/a2a_chain_probe.py`` drives that chain from outside, over raw A2A.
 """
 
 from __future__ import annotations
@@ -42,7 +49,9 @@ def build_app() -> Any:
     app = get_fast_api_app(
         agents_dir=str(ORCHESTRATOR_AGENTS_DIR),
         web=True,
-        a2a=False,
+        # Expose this agent over A2A too. ADK mounts /a2a/<dir> for every
+        # directory under agents_dir that carries an agent.json.
+        a2a=True,
         host=settings.orchestrator_host,
         port=settings.orchestrator_port,
         allow_origins=["*"],

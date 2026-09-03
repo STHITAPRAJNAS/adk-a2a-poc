@@ -56,13 +56,18 @@ wait_for "http://${ORCHESTRATOR_HOST}:${ORCHESTRATOR_PORT}/ops/wiring" "ops conc
 
 cat <<MSG
 
-  Dev UI (chat)   http://${ORCHESTRATOR_HOST}:${ORCHESTRATOR_PORT}/dev-ui?app=ops_concierge
-  Remote Dev UI   http://${REMOTE_AGENT_HOST}:${REMOTE_AGENT_PORT}/dev-ui?app=deployment_agent
-  Agent Card      http://${REMOTE_AGENT_HOST}:${REMOTE_AGENT_PORT}/a2a/deployment_agent/.well-known/agent-card.json
-  Jobs            http://${REMOTE_AGENT_HOST}:${REMOTE_AGENT_PORT}/ops/jobs
+  Dev UI (chat)     http://${ORCHESTRATOR_HOST}:${ORCHESTRATOR_PORT}/dev-ui?app=ops_concierge
+  Specialist Dev UI http://${REMOTE_AGENT_HOST}:${REMOTE_AGENT_PORT}/dev-ui?app=deployment_agent
 
-  Scripted walkthrough : python scripts/demo_client.py
-  Raw A2A wire trace   : python scripts/a2a_probe.py run --approve
+  Both agents are A2A servers:
+    ops_concierge     http://${ORCHESTRATOR_HOST}:${ORCHESTRATOR_PORT}/a2a/ops_concierge/.well-known/agent-card.json
+    deployment_agent  http://${REMOTE_AGENT_HOST}:${REMOTE_AGENT_PORT}/a2a/deployment_agent/.well-known/agent-card.json
+
+  Jobs              http://${REMOTE_AGENT_HOST}:${REMOTE_AGENT_PORT}/ops/jobs
+
+  Agent-to-agent chain : python scripts/a2a_chain_probe.py run
+  Single-agent wire    : python scripts/a2a_probe.py run --approve
+  Chat-layer walkthrough: python scripts/demo_client.py
   Stop everything      : scripts/stop_all.sh
 MSG
 

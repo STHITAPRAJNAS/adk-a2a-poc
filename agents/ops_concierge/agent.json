@@ -1,0 +1,39 @@
+{
+  "name": "ops_concierge",
+  "description": "Front door for platform release work. Accepts a plain-English release request, decides which specialist owns it, and delegates to the remote release-operations agent over A2A. Relays that agent's human-approval gates and long-running job handles back to its own caller, so a caller talking only to this agent still gets the full pause-and-resume contract.",
+  "url": "http://127.0.0.1:8000/a2a/ops_concierge",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
+  "preferredTransport": "JSONRPC",
+  "provider": {
+    "organization": "adk-a2a-poc",
+    "url": "https://github.com/sthitaprajnas/adk-a2a-poc"
+  },
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
+  "supportsAuthenticatedExtendedCard": false,
+  "skills": [
+    {
+      "id": "release_request_intake",
+      "name": "Release request intake",
+      "description": "Takes a natural-language release request, routes it to the agent that owns the work, and returns that agent's answer. Release work is delegated to a separate release-operations service over A2A; this agent performs no deployments itself.",
+      "tags": ["routing", "delegation", "release", "front-door"],
+      "examples": [
+        "Deploy checkout-api 2.14.0 to production",
+        "Is billing-worker 3.1.0 ready to ship?"
+      ]
+    },
+    {
+      "id": "delegated_approval_relay",
+      "name": "Delegated approval relay",
+      "description": "Surfaces a downstream agent's human-approval gate on this agent's own task. When the specialist pauses in input-required, this agent's task pauses too, carrying the same pending function call, and a function response sent here is forwarded onto the downstream task.",
+      "tags": ["hitl", "approval", "input-required", "relay", "multi-hop"],
+      "examples": ["Deploy checkout-api 2.14.0 to production and pause for my approval"]
+    }
+  ]
+}

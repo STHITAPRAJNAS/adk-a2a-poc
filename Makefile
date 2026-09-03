@@ -1,6 +1,6 @@
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
-.PHONY: help venv install env run run-remote run-orchestrator stop demo demo-approve demo-reject probe probe-card wrong-resume test lint logs clean
+.PHONY: help venv install env run run-remote run-orchestrator stop demo demo-approve demo-reject cards chain chain-reject chain-direct probe probe-card wrong-resume test test-live lint logs clean
 
 help:  ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -35,17 +35,32 @@ demo-approve:  ## Walk the full flow, approving automatically
 demo-reject:  ## Walk the flow and reject at the approval gate
 	$(PYTHON) scripts/demo_client.py --auto-reject
 
+cards:  ## Discover every agent in the network from its Agent Card
+	$(PYTHON) scripts/a2a_chain_probe.py cards
+
+chain:  ## Drive BOTH agents over raw A2A, from outside the network
+	$(PYTHON) scripts/a2a_chain_probe.py run
+
+chain-reject:  ## Same two-hop chain, rejecting at the human gate
+	$(PYTHON) scripts/a2a_chain_probe.py run --reject
+
+chain-direct:  ## The same flow entering at the specialist, for comparison
+	$(PYTHON) scripts/a2a_chain_probe.py run --direct
+
 probe-card:  ## Fetch and summarise the remote Agent Card
 	$(PYTHON) scripts/a2a_probe.py card
 
-probe:  ## Raw A2A wire trace, including the HITL resume
+probe:  ## Raw A2A wire trace against one agent, including the HITL resume
 	$(PYTHON) scripts/a2a_probe.py run --approve
 
 wrong-resume:  ## Show what a plain-text reply does to a paused task
 	$(PYTHON) scripts/a2a_probe.py wrong-resume
 
-test:  ## Run the test suite
+test:  ## Run the test suite on the scripted model (no API key needed)
 	$(PYTHON) -m pytest -q
+
+test-live:  ## Run the same suite against real Gemini (needs GOOGLE_API_KEY)
+	POC_TEST_LIVE=1 $(PYTHON) -m pytest -q
 
 lint:  ## Lint with ruff
 	$(PYTHON) -m ruff check .
