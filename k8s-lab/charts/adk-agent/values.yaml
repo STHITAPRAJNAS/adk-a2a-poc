@@ -1,0 +1,127 @@
+# ---------------------------------------------------------------------------
+# Defaults for a single ADK agent. Install this chart once per agent, with a
+# values file per agent — see values-concierge.yaml and values-specialist.yaml.
+# ---------------------------------------------------------------------------
+
+# The ADK "app name": the directory name of the agent package. ADK derives the
+# A2A mount path from it, so the RPC endpoint is /a2a/<appName> and the card is
+# /a2a/<appName>/.well-known/agent-card.json.
+appName: deployment_agent
+
+# Python module the container runs. The image carries both agents; this picks.
+serverModule: servers.remote_agent_server
+
+# Directory inside the image holding the agent package. The repo keeps the
+# orchestrator under agents/ and the specialist under remote_agents/, because
+# each server points get_fast_api_app at a different agents_dir. Only used to
+# locate agent.json when servedAgentCard overrides it.
+agentPackageDir: remote_agents
+
+image:
+  repository: adk-a2a-agent
+  tag: dev
+  # Nothing to pull from when images are side-loaded with `kind load`, so
+  # IfNotPresent. Switch to Always if you moved to the local registry.
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 8001
+
+# Port the agent listens on inside the pod. Must match the server module's
+# default, or be overridden through env below.
+containerPort: 8001
+
+# --- placement --------------------------------------------------------------
+# Lab 30 is where these earn their keep. Empty by default so a fresh install
+# lands anywhere and you can watch it move once you start constraining it.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    # No CPU limit on purpose: a limit here buys throttling, not safety, and the
+    # agents are bursty at startup. Memory is limited because a leak should kill
+    # the pod rather than the node.
+    memory: 512Mi
+
+# --- configuration ----------------------------------------------------------
+env:
+  # Bind to the pod IP, not loopback. The single most common reason a pod is
+  # Running, healthy-looking and completely unreachable.
+  REMOTE_AGENT_HOST: "0.0.0.0"
+  ORCHESTRATOR_HOST: "0.0.0.0"
+  # Scripted model: deterministic, free, no API key. Lab 70 turns this off.
+  POC_FAKE_LLM: "1"
+  ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS: "1"
+  COMPLIANCE_SCAN_SECONDS: "8"
+  DEPLOYMENT_JOB_SECONDS: "20"
+
+# Secret holding GOOGLE_API_KEY, consumed from lab 70 onwards. Leave empty and
+# no secret is referenced at all.
+apiKeySecret:
+  name: ""
+  key: GOOGLE_API_KEY
+
+# --- agent cards ------------------------------------------------------------
+# Two separate concerns, and conflating them is the classic A2A-on-Kubernetes
+# mistake.
+
+# 1. The card THIS agent publishes. The image ships one with a 127.0.0.1 URL,
+#    which is right for `make run` on a laptop and wrong everywhere else. Set
+#    this to overwrite it with a card naming the URL callers actually reach.
+servedAgentCard: {}
+
+# 2. Cards this agent CONSUMES, written to /etc/a2a/<name>.json.
+#
+#    Point the agent at the file path, not at an http URL. ADK's client rejects
+#    a card fetched over plain http whose RPC URL is neither https nor a
+#    loopback host — and `deployment-agent.agents.svc.cluster.local` is neither.
+#    A card read from a file skips that check entirely, because it did not come
+#    off the network. Lab 20 walks into the failure first so the fix means
+#    something.
+peerAgentCards: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+# --- health -----------------------------------------------------------------
+# /health is served by get_fast_api_app. Readiness gates Service endpoints;
+# liveness restarts. Startup gives the interpreter and ADK import time to run
+# without a slow boot being mistaken for a hang.
+probes:
+  enabled: true
+  path: /health
+  startup:
+    periodSeconds: 3
+    failureThreshold: 30
+  readiness:
+    periodSeconds: 5
+    failureThreshold: 3
+  liveness:
+    periodSeconds: 15
+    failureThreshold: 3
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+
+# /tmp must be writable: ADK's local session store and Python's temp files.
+extraVolumes: []
+extraVolumeMounts: []

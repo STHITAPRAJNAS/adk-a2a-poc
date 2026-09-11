@@ -1,0 +1,41 @@
+# Helm values that pin the agents to the general-purpose pool.
+#
+#   helm upgrade ops-concierge ../../charts/adk-agent -n agents \
+#     -f ../../charts/adk-agent/values-concierge.yaml \
+#     -f ./agent-placement.yaml
+#
+# nodeSelector would be enough here. nodeAffinity is used instead because it is
+# what you actually want in production: `preferredDuringScheduling` degrades to
+# "somewhere else" under pressure rather than leaving the pod Pending, and a
+# front-door agent that is running on the wrong node beats one that is not
+# running at all.
+nodeSelector: {}
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            # "anything that is not the accelerator pool" rather than
+            # "the cpu pool", so a third pool added later is eligible without
+            # anyone remembering to edit this.
+            - key: lab.local/accelerator
+              operator: NotIn
+              values: ["simulated"]
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: lab.local/pool
+              operator: In
+              values: ["cpu"]
+
+# Spread replicas across nodes when there is more than one. ScheduleAnyway, not
+# DoNotSchedule: an unspread pod beats an unscheduled one for a stateless agent.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: adk-agent

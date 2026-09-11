@@ -1,0 +1,57 @@
+# A GatewayClass names an implementation; a Gateway is an instance of one.
+# Splitting them is what lets a platform team own the class and app teams own
+# gateways, which is the main thing Gateway API fixed about Ingress.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  # Without this the EnvoyProxy below is an inert object: defining it is not
+  # enough, the class has to point at it.
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: nodeport-proxy
+    namespace: agents
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: north-south
+  namespace: agents
+spec:
+  gatewayClassName: envoy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.localhost"
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# Pin the generated Envoy Service to the NodePorts kind mapped to host
+# 8080/8443 in lab 10. Without this the Service is a LoadBalancer that never
+# gets an address on kind, and you would be back to port-forward — which
+# tunnels straight past the gateway and tests nothing.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: nodeport-proxy
+  namespace: agents
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: NodePort
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              ports:
+                - name: http-80
+                  nodePort: 30080
+                - name: https-443
+                  nodePort: 30443

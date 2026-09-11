@@ -1,0 +1,7 @@
+apiVersion: v2
+name: adk-agent
+description: One A2A-enabled Google ADK agent. Install once per agent.
+type: application
+version: 0.1.0
+appVersion: "2.8.0"
+keywords: [adk, a2a, agent]

@@ -294,6 +294,11 @@ Two documents go deeper:
 
 Both have a styled `.html` twin in `docs/` if you prefer reading them that way.
 
+There is also **[`k8s-lab/`](k8s-lab/)** on the `claude/k8s-a2a-lab` branch — a
+hands-on path that runs these two agents on Kubernetes with a service mesh and
+three different gateways, to make the east-west/north-south distinction
+something you can measure rather than read about.
+
 ---
 
 ## Versions

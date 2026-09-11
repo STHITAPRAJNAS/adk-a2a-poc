@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "adk-agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "adk-agent.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "adk-agent.selectorLabels" . | nindent 4 }}
+  ports:
+    # Named because Istio picks its protocol from the port name. Call it
+    # anything else and ambient treats this as opaque TCP, which quietly costs
+    # you every L7 feature in lab 40 — HTTP authz, retries, per-route metrics.
+    - name: http-a2a
+      port: {{ .Values.service.port }}
+      targetPort: http-a2a
+      protocol: TCP
+      appProtocol: http

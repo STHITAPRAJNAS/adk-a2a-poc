@@ -1,0 +1,16 @@
+# terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+crash.log
+
+# generated kubeconfigs and rendered manifests
+kubeconfig
+kubeconfig-*
+*.rendered.yaml
+
+# local scratch
+.tmp/

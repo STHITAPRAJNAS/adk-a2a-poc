@@ -1,0 +1,84 @@
+# Worked example. Apply after the chart is installed and the CRDs exist.
+#
+# UNVERIFIED against a running cluster — treat the field names as a starting
+# point and check them with `kubectl explain aigatewayroute.spec`.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gemini-credentials
+  namespace: envoy-ai-gateway-system
+type: Opaque
+stringData:
+  # The only place the real key exists. Agents never see it.
+  apiKey: REPLACE_ME
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIServiceBackend
+metadata:
+  name: gemini
+  namespace: envoy-ai-gateway-system
+spec:
+  schema:
+    name: OpenAI          # Agent Router normalises providers to an OpenAI-shaped API
+  backendRef:
+    name: gemini-upstream
+    kind: Backend
+    group: gateway.envoyproxy.io
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: BackendSecurityPolicy
+metadata:
+  name: gemini-key
+  namespace: envoy-ai-gateway-system
+spec:
+  targetRefs:
+    - group: aigateway.envoyproxy.io
+      kind: AIServiceBackend
+      name: gemini
+  type: APIKey
+  apiKey:
+    secretRef:
+      name: gemini-credentials
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIGatewayRoute
+metadata:
+  name: agents-llm-egress
+  namespace: envoy-ai-gateway-system
+spec:
+  parentRefs:
+    - name: north-south          # reuses lab 50's Gateway
+      kind: Gateway
+      group: gateway.networking.k8s.io
+  rules:
+    - matches:
+        - headers:
+            - type: Exact
+              name: x-ai-eg-model
+              value: gemini-2.5-flash
+      backendRefs:
+        - name: gemini
+          weight: 100
+# ---------------------------------------------------------------------------
+# Pointing the agents here
+#
+# ADK's Gemini client reads GOOGLE_API_KEY and talks to Google directly. To send
+# it through the gateway you need a base-URL override, which in ADK means either
+# GOOGLE_GEMINI_BASE_URL (check your google-genai version supports it) or
+# swapping the agent's model= for a LiteLlm model pointed at the gateway's
+# OpenAI-compatible endpoint.
+#
+# The second is the more reliable route and touches only agent construction:
+#
+#   from google.adk.models.lite_llm import LiteLlm
+#   model = LiteLlm(
+#       model="openai/gemini-2.5-flash",
+#       api_base="http://north-south.agents.svc.cluster.local/v1",
+#       api_key="unused-the-gateway-holds-the-real-one",
+#   )
+#
+# That is a change to the root repository, not to this lab — which is itself the
+# lesson: an LLM egress gateway is only transparent if your SDK lets you move
+# the base URL. Check that before you design around one.
+# ---------------------------------------------------------------------------

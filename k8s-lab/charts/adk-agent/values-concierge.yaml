@@ -1,0 +1,108 @@
+# ---------------------------------------------------------------------------
+# ops_concierge — the front door. An A2A server to whoever calls it, and an A2A
+# client of deployment_agent.
+#
+#   helm install ops-concierge ./charts/adk-agent \
+#     -n agents -f ./charts/adk-agent/values-concierge.yaml
+# ---------------------------------------------------------------------------
+
+appName: ops_concierge
+agentPackageDir: agents
+serverModule: servers.orchestrator_server
+
+containerPort: 8000
+service:
+  port: 8000
+
+env:
+  ORCHESTRATOR_HOST: "0.0.0.0"
+  ORCHESTRATOR_PORT: "8000"
+  POC_FAKE_LLM: "1"
+  ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS: "1"
+
+  # ─── The line that makes in-cluster A2A work ──────────────────────────────
+  #
+  # A FILE PATH, not a URL, and that is the whole point.
+  #
+  # The obvious thing to write here is
+  #   http://deployment-agent.agents.svc.cluster.local:8001/a2a/deployment_agent/.well-known/agent-card.json
+  # and it fails. ADK's RemoteA2aAgent validates any card it fetches over the
+  # network: every RPC URL the card offers must be https, or http on a loopback
+  # host. A cluster DNS name is neither, so the client raises
+  # AgentCardResolutionError before it sends a single RPC.
+  #
+  # A card read from a file did not come off the network, so that check is
+  # skipped — ADK dispatches on whether the string starts with http.
+  #
+  # This is not a workaround so much as the honest shape: inside a cluster, an
+  # agent card is configuration you distribute, not a document you discover.
+  # Lab 20 makes you hit the error first.
+  DEPLOYMENT_AGENT_CARD_URL: /etc/a2a/deployment-agent.json
+
+# Written to /etc/a2a/deployment-agent.json by the chart.
+peerAgentCards:
+  deployment-agent:
+    name: deployment_agent
+    description: >-
+      Remote release operations agent, reached over A2A. Checks release
+      readiness, runs compliance scans, opens human change-approval tickets and
+      executes deployment jobs. Pauses for human approval before production
+      releases.
+    url: http://deployment-agent.agents.svc.cluster.local:8001/a2a/deployment_agent
+    version: "1.0.0"
+    protocolVersion: "0.3.0"
+    preferredTransport: JSONRPC
+    capabilities:
+      streaming: true
+      pushNotifications: false
+      stateTransitionHistory: true
+    defaultInputModes: ["text/plain"]
+    defaultOutputModes: ["text/plain"]
+    supportsAuthenticatedExtendedCard: false
+    skills:
+      - id: release_readiness
+        name: Release readiness check
+        description: Reports whether a service version can be released into an environment.
+        tags: [release, readiness]
+        examples: ["Is checkout-api 2.14.0 ready for production?"]
+      - id: human_change_approval
+        name: Human change approval
+        description: Pauses in input-required until a human approves or rejects the change.
+        tags: [hitl, approval, input-required]
+        examples: ["Deploy checkout-api 2.14.0 to production"]
+
+# The concierge's own card. Only consulted by callers outside the cluster, so
+# it names the gateway hostname from lab 60 rather than a Service. It is wrong
+# until that gateway exists — which is exactly the failure lab 60 opens with.
+servedAgentCard:
+  name: ops_concierge
+  description: >-
+    Front door for platform release work. Routes release requests to the remote
+    release-operations agent over A2A, relaying its approval gates and job
+    handles back to the caller.
+  url: http://a2a.localhost:8080/a2a/ops_concierge
+  version: "1.0.0"
+  protocolVersion: "0.3.0"
+  preferredTransport: JSONRPC
+  capabilities:
+    streaming: true
+    pushNotifications: false
+    stateTransitionHistory: true
+  defaultInputModes: ["text/plain"]
+  defaultOutputModes: ["text/plain"]
+  supportsAuthenticatedExtendedCard: false
+  skills:
+    - id: release_request_intake
+      name: Release request intake
+      description: >-
+        Takes a natural-language release request, routes it to the agent that
+        owns the work, and returns that agent's answer.
+      tags: [routing, delegation, release]
+      examples: ["Deploy checkout-api 2.14.0 to production"]
+    - id: delegated_approval_relay
+      name: Delegated approval relay
+      description: >-
+        Surfaces a downstream agent's human-approval gate on this agent's own
+        task, and forwards the function response back down.
+      tags: [hitl, relay, multi-hop, input-required]
+      examples: ["Deploy checkout-api 2.14.0 and pause for my approval"]

@@ -1,0 +1,13 @@
+# Ambient encrypts mesh traffic by default but still accepts plaintext from
+# outside the mesh, so enrolling a namespace never breaks anything mid-migration.
+#
+# STRICT closes that door. Apply it only once everything that must talk to these
+# pods is in the mesh — including, if you got there, your gateway.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: strict-mtls
+  namespace: agents
+spec:
+  mtls:
+    mode: STRICT
