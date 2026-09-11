@@ -46,7 +46,7 @@ kubectl apply -f gateway.yaml
 kubectl apply -f a2a-route.yaml
 ```
 
-Then from macOS, exactly the call from lab 50 on a different port:
+Then from WSL or Windows, exactly the call from lab 50 on a different port:
 
 ```bash
 curl -sN http://a2a.localhost:8081/a2a/ops_concierge \

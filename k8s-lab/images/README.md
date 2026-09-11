@@ -27,15 +27,20 @@ packages live up there and Docker cannot read above its context.
 Start with `kind load`. Switch when the wait annoys you — which it will, around
 the third time you change a line of Python.
 
-## Why arm64 matters here
+## Architecture
 
-kind nodes on Apple Silicon are arm64. An amd64 image will be pulled happily and
-then crash-loop with `exec format error`, which reads like a corrupt binary
-rather than a platform mismatch. If you see that, check:
+On a Windows/WSL2 machine everything is `linux/amd64` and the default is right.
+The flag exists because the same image may need rebuilding for an arm64 cluster
+(Graviton node groups on EKS are arm64, and cheaper):
 
 ```bash
+./build.sh --platform arm64
 docker image inspect adk-a2a-agent:dev --format '{{.Architecture}}'
 ```
+
+A mismatch shows up as `exec format error` in a crash loop — which reads like a
+corrupt binary rather than a platform problem, so check this first when a pod
+will not start.
 
 ## The scripted model
 

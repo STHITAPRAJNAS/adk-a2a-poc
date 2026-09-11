@@ -4,7 +4,7 @@
 #
 #   ./build.sh                 build + load into kind (simple, no registry)
 #   ./build.sh --registry      build + push to localhost:5001 (faster rebuilds)
-#   ./build.sh --platform amd64  override arch, e.g. for a cloud cluster
+#   ./build.sh --platform arm64   override arch, e.g. for Graviton node groups
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -14,7 +14,7 @@ REPO_ROOT="$(cd .. && pwd)"
 IMAGE_NAME="${IMAGE_NAME:-adk-a2a-agent}"
 IMAGE_TAG="${IMAGE_TAG:-dev}"
 CLUSTER="${CLUSTER:-a2a-lab}"
-PLATFORM="linux/arm64"
+PLATFORM="linux/amd64"
 USE_REGISTRY=0
 
 while [ $# -gt 0 ]; do

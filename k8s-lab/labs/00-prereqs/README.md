@@ -1,36 +1,52 @@
 # Lab 00 — Prerequisites
 
-Get your Mac ready. Twenty minutes, mostly downloads.
+Windows owns the GPU driver and Docker Desktop. Everything else happens inside
+WSL2. Around twenty minutes, mostly downloads.
 
-## What you need and why each choice
+The full step-by-step with checks at each layer is
+[docs/windows-wsl2-gpu.md](../../docs/windows-wsl2-gpu.md) — this page is the
+why behind each choice.
+
+## On Windows
+
+| | |
+|---|---|
+| **WSL2 + Ubuntu 24.04** | `wsl --install -d Ubuntu-24.04`. All labs run here. |
+| **NVIDIA driver** | Game Ready or Studio, from nvidia.com. Includes WSL support. **Never install a driver inside WSL** — it will shadow the paravirtualised one and break GPU access. |
+| **Docker Desktop** | WSL2 backend on, integration enabled for your distro, Resources set to **8+ GB / 4+ CPUs**. |
+
+Four kind nodes plus Istio plus two gateways is not a small footprint. 4 GB will
+give you nodes stuck `NotReady` and no obvious reason why.
+
+## Inside WSL
 
 ```bash
-brew install kind kubectl helm terraform istioctl k9s jq yq
+sudo apt-get install -y jq
 ```
 
 | Tool | Why this one |
 |---|---|
-| **kind** | Runs each Kubernetes node as a container. Multiple nodes on one machine is exactly what we need for node groups, and it is the reference tool the Kubernetes project itself tests with. |
+| **kind** | Each node is a container, so a multi-node cluster fits on one laptop — and `extraMounts` is what lets exactly one node have the GPU. That is the whole GPU node group trick. |
 | **kubectl** | Non-negotiable. |
-| **helm** | Lab 20 makes you author a chart rather than only install someone else's. |
-| **terraform** | Cluster lifecycle. OpenTofu works identically if you prefer it — swap the binary, the HCL is unchanged. |
-| **istioctl** | `istioctl` gives you `ztunnel-config`, `proxy-config` and `analyze`, which are how you debug a mesh. |
-| **k9s** | Optional, but you will spend a lot of time in `kubectl get pods -w` otherwise. |
-| **jq / yq** | The verification scripts use them. |
+| **helm** | Lab 20 makes you author a chart, not only install someone else's. |
+| **terraform** | Cluster lifecycle. OpenTofu is a drop-in; the HCL is unchanged. |
+| **nvidia-container-toolkit** | Injects the GPU into containers. Two config flags in it decide whether lab 30 is real or simulated. |
+| **istioctl** | `ztunnel-config`, `proxy-config` and `analyze` are how you debug a mesh. |
+| **jq** | The verification scripts need it. |
+| **k9s** | Optional, and you will want it by lab 30. |
 
-## A container runtime
+Install commands are in [the runbook, phase 0](../../RUNBOOK.md#phase-0--the-machine---20-min).
 
-kind needs Docker-compatible container runtime. Pick one:
+## Two things that will cost you time if you skip them
 
-| | Notes |
-|---|---|
-| **Docker Desktop** | Easiest. Settings → Resources → give it **8 GB RAM, 4 CPUs** minimum. Licence terms apply for larger companies. |
-| **OrbStack** | Noticeably faster and lighter on Apple Silicon. Paid for commercial use. Drop-in for kind. |
-| **Colima** | Free, CLI-driven: `colima start --cpu 6 --memory 16 --disk 100`. What I would pick for a lab machine. |
-| **Rancher Desktop** | Free, has its own Kubernetes you should turn off — we want kind to own that. |
+**Keep the repo in the WSL filesystem.** `~/adk-a2a-poc`, not
+`/mnt/c/Users/...`. Filesystem calls across the Windows boundary are an order of
+magnitude slower, and Docker builds and Terraform both make a great many of them.
+`make doctor` warns you about this.
 
-Any of them works. **Do not** enable the runtime's own built-in Kubernetes; it
-is single-node and will fight kind for ports and for your `KUBECONFIG`.
+**Do not enable Docker Desktop's built-in Kubernetes.** It is single-node and
+will compete with kind for ports and for your `KUBECONFIG`. We want kind to own
+that entirely.
 
 ## Verify
 
@@ -39,36 +55,22 @@ cd k8s-lab
 make doctor
 ```
 
-That checks versions, confirms the container runtime is up and arm64, and warns
-if the VM is under-resourced. Fix anything it flags before lab 10 — every
-failure it catches is one that would otherwise surface as a confusing pod crash
-three labs later.
+It walks the whole chain — tools, runtime resources, then the GPU layer by layer
+— so a failure is attributed to the right place rather than surfacing three labs
+later as a confusing pod crash.
 
-Manual equivalent, if you would rather see it yourself:
-
-```bash
-docker info --format '{{.Architecture}} {{.NCPU}}cpu {{.MemTotal}}bytes'
-kind version && kubectl version --client && helm version --short && terraform version
-```
-
-Expect `aarch64` or `arm64` for the architecture. If you see `x86_64`, you are
-running something under Rosetta and every image pull in this lab will be slower
-and some will fail — sort that out first.
-
-## Optional: the local registry
-
-Lab 20 builds agent images. You can either load them straight into kind
-(`kind load docker-image`, simple, slow-ish) or run a local registry (faster on
-rebuild, and closer to how a real cluster pulls). `make registry-up` starts one
-on `localhost:5001`; lab 20 explains the tradeoff and works either way.
+The **GPU lines are allowed to fail.** If they do, lab 10 takes
+`-var enable_gpu=false` and lab 30 takes its simulated path; everything else is
+identical. Nothing else may fail.
 
 ## What you do not need
 
-- **No cloud account.** Labs 00–70 are entirely local. Only the optional lab 90
-  touches a cloud, and it warns you about cost first.
-- **No Gemini API key** until lab 70. Labs 20–60 run the agents with
-  `POC_FAKE_LLM=1` — the scripted model from the root repository — which is
-  better for a platform lab anyway: deterministic, instant, free, and it removes
-  the model as a variable when you are debugging networking.
+- **No cloud account.** Labs 00–70 are entirely local. Only lab 90 touches one,
+  and it warns about cost first.
+- **No Gemini API key** until lab 70. The agents run on `POC_FAKE_LLM=1` — the
+  scripted model from the root repository — which for a platform lab is the right
+  default and not merely a convenience: it removes the model as a variable, so
+  when an A2A call fails between two pods you are debugging the network rather
+  than wondering what the LLM decided this time.
 
 → [Lab 10: the cluster](../10-cluster/)

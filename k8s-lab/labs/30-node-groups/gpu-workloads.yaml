@@ -1,0 +1,76 @@
+# The scheduler's three answers — yes, no, and not yet — against a real GPU.
+#
+# For the simulated path, run:
+#   sed 's|nvidia.com/gpu|lab.local/gpu|g' gpu-workloads.yaml | kubectl apply -f -
+# Everything below behaves identically; only `nvidia-smi` stops working.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: scheduling-lab
+---
+# 1. YES — lands on the GPU node and can actually see the card.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-good
+  namespace: scheduling-lab
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: gpu-a10g
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: smi
+      image: nvidia/cuda:12.6.2-base-ubuntu24.04
+      command: ["sh", "-c", "nvidia-smi && echo '--- node:' $NODE_NAME && sleep 3600"]
+      env:
+        - name: NODE_NAME
+          valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+---
+# 2. NO — Pending forever. Right node, right resource, no toleration.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-no-toleration
+  namespace: scheduling-lab
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: gpu-a10g
+  containers:
+    - name: smi
+      image: nvidia/cuda:12.6.2-base-ubuntu24.04
+      command: ["sleep", "3600"]
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+---
+# 3. NOT YET — everything correct, asks for more cards than exist.
+# Identical to #2 in `kubectl get pods`. Completely different in `describe`.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-too-greedy
+  namespace: scheduling-lab
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: gpu-a10g
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: smi
+      image: nvidia/cuda:12.6.2-base-ubuntu24.04
+      command: ["sleep", "3600"]
+      resources:
+        limits:
+          nvidia.com/gpu: 8

@@ -1,8 +1,8 @@
-# Lab 90 — Real GPUs (optional, costs money)
+# Lab 90 — EKS for real (optional, costs money)
 
-Everything up to here ran free on your Mac. This lab rents actual NVIDIA
-hardware so you can see the difference between `lab.local/gpu` and
-`nvidia.com/gpu` — which, as it turns out, is almost nothing.
+Everything up to here ran free on your laptop, with a real GPU and EKS-shaped
+labels. This lab rents a managed cluster to see the two things a local cluster
+genuinely cannot teach: **autoscaling** and **scale-to-zero**.
 
 > **This costs money.** A single `g5.xlarge` is roughly $1/hour on demand, plus
 > the EKS control plane at ~$0.10/hour. Budget an hour, set a billing alarm, and
@@ -11,24 +11,26 @@ hardware so you can see the difference between `lab.local/gpu` and
 
 ## Do this lab only when
 
-You have finished lab 30 and want to confirm that what you learned transfers. If
-you are short of time or money, skip it — lab 30 taught the operational part and
-this mostly confirms it.
+You have finished lab 30 and want to see a node group that does not exist until
+a pod needs it. If you are short of time or money, skip it — lab 30 already gave
+you a real GPU and real scheduling. What is left here is the autoscaler, and
+[docs/eks-parity.md](../../docs/eks-parity.md) describes it honestly enough to
+work from.
 
 ## What changes, and what does not
 
 | | Lab 30 (kind) | Here (EKS) |
 |---|---|---|
-| Resource name | `lab.local/gpu` | `nvidia.com/gpu` |
-| Who advertises it | A script patching node status | NVIDIA device plugin DaemonSet |
-| Survives kubelet restart | No | Yes — the plugin re-reports |
-| Who applies label + taint | You, via `kubernetes_labels` | The node group definition |
-| Node pool shape | kind config, cluster replaced | `aws_eks_node_group`, nodes replaced |
-| `workloads.yaml` | works | **works, after one rename** |
+| Resource name | `nvidia.com/gpu` | **identical** |
+| Who advertises it | NVIDIA device plugin | **identical** (often via the GPU Operator) |
+| Node labels | `eks.amazonaws.com/nodegroup` etc. | **identical keys, real values** |
+| Who applies label + taint | kubelet flags at registration | the node group's launch template |
+| Node count | fixed at 1 | **0 → N on demand, back to 0 when idle** |
+| `gpu-workloads.yaml` | works | **works unchanged** |
 
-That last row is the payoff. Copy `labs/30-node-groups/workloads.yaml`, change
-`lab.local/gpu` to `nvidia.com/gpu`, and the three scheduling outcomes — yes,
-no, not yet — reproduce exactly.
+That last row is the payoff, and it needs no rename — lab 30 already used the
+real resource name and the real label keys. What is genuinely new here is the
+row above it.
 
 ## Sketch
 

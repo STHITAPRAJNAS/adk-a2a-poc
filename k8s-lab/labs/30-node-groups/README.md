@@ -1,87 +1,113 @@
-# Lab 30 — Node groups: CPU and GPU
+# Lab 30 — Node groups, with a real GPU
 
-**Read [docs/apple-silicon-reality.md](../../docs/apple-silicon-reality.md)
-first.** There is no GPU in this cluster and there cannot be. This lab teaches
-the part you actually operate — placement, isolation and capacity — with a
-simulated resource deliberately named `lab.local/gpu` so nothing can be mistaken
-for real hardware.
+Lab 10 built the node groups. This lab makes the GPU **schedulable** and then
+breaks scheduling in the three ways that matter.
 
-## The three mechanisms
-
-A node group is three separate things that people tend to blur into one:
-
-| | Does | Without it |
-|---|---|---|
-| **Label** | Lets a pod *choose* the pool | Nothing can target the pool |
-| **Taint** | Stops everything else *landing* there | General workloads drift onto your expensive nodes |
-| **Extended resource** | Makes capacity *countable* | Ten pods "using the GPU" on a one-GPU node |
-
-You need all three. Two out of three fails in a way that only shows up under load.
-
-## Run it
+## Pick your path
 
 ```bash
 export KUBECONFIG=$PWD/../10-cluster/kubeconfig
-
-# labels + taints
-terraform init && terraform apply
-
-# extended resource — Terraform cannot patch node *status*, so this is a script
-../../scripts/advertise-gpu.sh a2a-lab-worker3 2
-
-kubectl get nodes -L lab.local/pool,node.kubernetes.io/instance-type
-kubectl get node a2a-lab-worker3 -o jsonpath='{.status.allocatable}' | jq
+kubectl get nodes -L eks.amazonaws.com/nodegroup
+GPU_NODE=$(kubectl get nodes -l eks.amazonaws.com/nodegroup=gpu-a10g -o name | cut -d/ -f2)
+docker exec "$GPU_NODE" ls /dev/dxg && echo "→ real GPU path" || echo "→ simulated path"
 ```
 
-The last command should show `"lab.local/gpu": "2"` alongside cpu and memory.
+**Real path** — continue below.
+**Simulated path** — jump to [the fallback](#fallback-no-hardware), then rejoin
+at *Scheduling: yes, no, and not yet*. The scheduling lessons are identical;
+only `nvidia-smi` stops working.
 
-### Why the resource needs a script
+## The three mechanisms
 
-`kubernetes_labels` and `kubernetes_node_taint` write to a node's **spec**,
-which Terraform is happy to own. Extended resources live in a node's **status**,
-reachable only through the `/status` subresource with a JSON-patch — and status
-is the kubelet's to write, not a controller's. On a real cluster a **device
-plugin** does this: it discovers hardware and reports it to the kubelet every
-few seconds.
+A node group is three separate things people tend to blur into one:
 
-`advertise-gpu.sh` patches status directly, which is the documented way to
-advertise an extended resource without a device plugin. It is exactly what a
-device plugin would report, minus the hardware — and it is honest about being a
-poke rather than a controller. Note the consequence: the value does not survive
-a kubelet restart, because nothing is re-reporting it. That is not a bug in the
-script, it is the difference between a patch and a plugin.
+| | Does | Without it |
+|---|---|---|
+| **Label** | Lets a pod *choose* the pool | Nothing can target it |
+| **Taint** | Stops everything else *landing* there | Batch jobs squat on your expensive nodes |
+| **Extended resource** | Makes capacity *countable* | Ten pods "using" one GPU |
+
+Lab 10 did the first two at node registration, the way an EKS node group's
+launch template does. The third is what the device plugin is for.
+
+## Install the device plugin
+
+The plugin is a DaemonSet that finds GPUs and reports them to the kubelet every
+few seconds, which is how `nvidia.com/gpu` appears in a node's allocatable
+resources.
+
+```bash
+# containerd inside the node must know the nvidia runtime first
+../../scripts/setup-gpu-node.sh
+
+helm repo add nvdp https://nvidia.github.io/k8s-device-plugin && helm repo update
+helm upgrade --install nvdp nvdp/nvidia-device-plugin \
+  -n nvidia-device-plugin --create-namespace \
+  --version 0.17.0 -f device-plugin-values.yaml
+
+kubectl -n nvidia-device-plugin logs -l app.kubernetes.io/name=nvidia-device-plugin --tail=20
+kubectl get nodes -o custom-columns='NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
+```
+
+You want `1` against the GPU node. **Read the plugin values file** — two lines
+there are the ones people get wrong:
+
+- **the toleration.** The node group is tainted, so the plugin must tolerate its
+  own taint. Forget it and you get the classic loop: the thing that advertises
+  the resource cannot schedule onto the node that has it, so the resource never
+  appears, so nothing schedules. The logs say nothing useful because the pod
+  never started.
+- **`deviceListStrategy: volume-mounts`**, matching how lab 10 injected the
+  device. CDI mode is deliberately off — it needs NVML to reach `libdxcore.so`,
+  which is exactly what breaks on WSL2.
+
+### If the plugin says "No devices found. Waiting indefinitely."
+
+That is the known WSL2 issue. Try once:
+
+```bash
+kubectl -n nvidia-device-plugin delete pod -l app.kubernetes.io/name=nvidia-device-plugin
+```
+
+Restarting sometimes fixes an ordering race with the runtime. If it persists,
+**take the simulated path and move on.** This is a genuine upstream rough edge on
+WSL2, not something you have misconfigured, and the rest of the lab does not
+depend on it.
 
 ## Scheduling: yes, no, and not yet
 
 ```bash
-kubectl create namespace scheduling-lab
-kubectl apply -f workloads.yaml
+kubectl apply -f gpu-workloads.yaml
 kubectl -n scheduling-lab get pods -o wide
 ```
 
 | Pod | Expected |
 |---|---|
-| `gpu-job-good` | `Running` on `a2a-lab-worker3` |
-| `gpu-job-no-toleration` | `Pending` — repelled by the taint |
-| `gpu-job-too-greedy` | `Pending` — asks for 99 of 2 |
+| `gpu-good` | `Running` on the GPU node |
+| `gpu-no-toleration` | `Pending` — repelled by the taint |
+| `gpu-too-greedy` | `Pending` — asks for 8 of 1 |
+
+Real hardware, so this works:
+
+```bash
+kubectl -n scheduling-lab logs gpu-good
+# your actual GPU, from inside a pod, on a node group you built
+```
 
 The two Pending pods look identical in `get pods`. They are not:
 
 ```bash
-kubectl -n scheduling-lab describe pod gpu-job-no-toleration | tail -5
-#   0/4 nodes are available: 1 node(s) had untolerated taint
-#   {lab.local/accelerator: simulated}, 3 node(s) didn't match Pod's node affinity/selector.
+kubectl -n scheduling-lab describe pod gpu-no-toleration | tail -4
+#   1 node(s) had untolerated taint {nvidia.com/gpu: present}, 3 node(s) didn't match nodeSelector
 
-kubectl -n scheduling-lab describe pod gpu-job-too-greedy | tail -5
-#   0/4 nodes are available: 1 Insufficient lab.local/gpu, 3 node(s) didn't match …
+kubectl -n scheduling-lab describe pod gpu-too-greedy | tail -4
+#   1 Insufficient nvidia.com/gpu, 3 node(s) didn't match nodeSelector
 ```
 
-**Learn to read that line.** It is the single most useful diagnostic in
-Kubernetes, it tells you exactly which predicate rejected which nodes, and it is
-the answer to almost every "why is my pod Pending" question you will ever be
-asked.
+**Learn to read that line.** It names which predicate rejected which nodes, and
+it answers almost every "why is my pod Pending" question you will ever be asked.
 
-## Pin the agents to the CPU pool
+## Pin the agents to the general pool
 
 ```bash
 helm upgrade ops-concierge ../../charts/adk-agent -n agents \
@@ -89,43 +115,67 @@ helm upgrade ops-concierge ../../charts/adk-agent -n agents \
 helm upgrade deployment-agent ../../charts/adk-agent -n agents \
   -f ../../charts/adk-agent/values-specialist.yaml -f ./agent-placement.yaml
 
-kubectl -n agents get pods -o wide      # never on worker3
+kubectl -n agents get pods -o wide    # never on the GPU node
 ```
 
-`agent-placement.yaml` uses `nodeAffinity` rather than `nodeSelector`, and the
-required term is `accelerator NotIn [simulated]` rather than `pool In [cpu]` —
-so a third pool added next month is eligible without anyone remembering to edit
-this file. The preferred term still favours the CPU pool. Under pressure the
-pod lands somewhere rather than nowhere, which for a stateless front door is the
-right trade.
+Note the required rule is `nvidia.com/gpu.present DoesNotExist`, not
+`nodegroup In [general]`. A node group added next month is then eligible without
+anyone remembering to edit this file — which on EKS, where node groups come and
+go, matters more than it looks.
 
 ## Things worth breaking
 
-Each of these takes a minute and teaches more than reading about it.
+Each takes a minute and teaches more than reading about it.
 
-1. **Remove the taint**, then apply an unconstrained Deployment with 6 replicas.
-   Watch pods land on the GPU node. Re-apply the taint — note the running pods
-   *stay*, because `NoSchedule` is not `NoExecute`.
-2. **Set the resource to 1** and apply two `gpu-job-good` pods. The second goes
-   Pending. Delete the first and watch the second schedule within seconds.
-3. **Delete the extended resource** (`advertise-gpu.sh a2a-lab-worker3 0`) while
-   a pod is using it. The pod keeps running — the scheduler only consults
-   capacity at placement time. Nothing reclaims it.
-4. **Add a `PriorityClass`** to the GPU job and fill the node with low-priority
-   pods. Watch preemption evict them. This is how a real GPU cluster keeps
-   expensive hardware busy without letting batch jobs squat on it.
+1. **Remove the toleration from the device plugin** and reinstall. Watch the
+   resource vanish and every GPU pod go Pending. This is the failure you will
+   hit for real on EKS the first time you taint a node group.
+2. **Scale `gpu-good` to 2 replicas.** The second stays Pending even though the
+   first is idle. **GPUs are not shared by default** — a pod holds the whole
+   card. This surprises everyone used to CPU, and it is the entire reason
+   time-slicing and MIG exist.
+3. **Turn on time-slicing** (uncomment the block in `device-plugin-values.yaml`)
+   and watch one GPU become four. The scheduler's view changes; the hardware does
+   not, so the four pods genuinely contend. Now `nvidia-smi` inside two pods
+   shows the same card.
+4. **Delete the zone labels** from a node and re-roll the agents. The
+   `topologySpreadConstraint` silently stops constraining. `ScheduleAnyway` means
+   you get no error — which is why a spread constraint that does nothing is a
+   common and invisible bug.
+5. **Cordon the GPU node** (`kubectl cordon`) with a GPU pod running. It stays;
+   only new pods are refused. Then `drain` it and watch the difference.
 
-## What transfers to a real cluster
+## Fallback: no hardware
 
-Everything except the resource name. On EKS or GKE with the NVIDIA device
-plugin:
+Everything above minus the hardware. Same taints, same selectors, same Pending
+pods, same `describe` output.
 
-- `lab.local/gpu` → `nvidia.com/gpu`
-- the taint is applied by the node group definition rather than by you
-- `node.kubernetes.io/instance-type` is already there, and reads `g5.xlarge`
-- the device plugin advertises capacity continuously instead of once
+```bash
+# advertise a fake resource, named so it can never be mistaken for the real one
+../../scripts/advertise-gpu.sh "$GPU_NODE" 2
 
-The manifests in `workloads.yaml` work unchanged after that rename. Lab 90 does
-exactly that swap against real hardware.
+sed 's|nvidia.com/gpu: 1|lab.local/gpu: 1|; s|nvidia.com/gpu: 8|lab.local/gpu: 8|' \
+  gpu-workloads.yaml | kubectl apply -f -
+```
+
+Two honest differences: the containers cannot compute, and the resource does not
+survive a kubelet restart because nothing re-reports it. That second one is
+precisely the difference between a patch and a device plugin, and worth noticing.
+
+## What transfers to EKS
+
+Almost everything, because lab 10 used EKS's own label keys.
+
+| Here | EKS |
+|---|---|
+| `eks.amazonaws.com/nodegroup: gpu-a10g` | identical |
+| `nvidia.com/gpu` | identical |
+| taint applied at registration | applied by the node group |
+| device plugin DaemonSet | identical, often via the GPU Operator |
+| fixed node count | Karpenter provisions on Pending, scales to zero when idle |
+
+That last row is the one big gap, and it inverts a habit: on a fixed cluster a
+Pending pod is a bug; on an autoscaled one it is the normal first thirty seconds
+of a pod's life. [docs/eks-parity.md](../../docs/eks-parity.md) has the rest.
 
 → [Lab 40: Istio ambient — east-west](../40-istio-ambient/)

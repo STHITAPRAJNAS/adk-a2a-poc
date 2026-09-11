@@ -1,9 +1,10 @@
 # One image, both agents. Which one runs is decided by the command, not by the
 # build — so there is a single artifact to push, scan and roll back.
 #
-# Built for linux/arm64 by default. kind on Apple Silicon runs arm64 nodes, and
-# an amd64 image lands as `exec format error` in a crash loop, which is a
-# thoroughly unhelpful message for what is really a platform mismatch.
+# Built for linux/amd64 by default, which is what a Windows/WSL2 machine runs.
+# Use build.sh --platform arm64 for an arm64 cluster (EKS Graviton node groups).
+# A mismatch lands as `exec format error` in a crash loop — an unhelpful message
+# for what is really a platform problem.
 
 FROM python:3.11-slim-bookworm AS base
 

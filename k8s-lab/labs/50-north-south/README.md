@@ -13,7 +13,7 @@ kubectl apply -f httproute.yaml
 kubectl -n agents get gateway north-south -w     # wait for PROGRAMMED=True
 ```
 
-Then, from macOS — no port-forward, through a real gateway:
+Then, from WSL **or a Windows browser** — no port-forward, through a real gateway:
 
 ```bash
 curl -sN http://a2a.localhost:8080/a2a/ops_concierge \

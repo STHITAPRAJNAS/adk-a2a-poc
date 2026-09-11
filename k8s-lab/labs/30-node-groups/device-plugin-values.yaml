@@ -1,0 +1,41 @@
+# NVIDIA device plugin, scoped to the GPU node group.
+#
+#   helm upgrade --install nvdp nvdp/nvidia-device-plugin \
+#     -n nvidia-device-plugin --create-namespace \
+#     --version 0.17.0 -f device-plugin-values.yaml
+
+# Only run where there is a GPU. On EKS the plugin is usually cluster-wide with
+# a nodeSelector on a GPU label; same idea, and it keeps the DaemonSet off the
+# general nodes where it would just log errors.
+nodeSelector:
+  eks.amazonaws.com/nodegroup: gpu-a10g
+
+# The node group is tainted, so the plugin needs to tolerate its own taint.
+# Forgetting this is the classic "plugin never starts, GPU never appears" loop:
+# the thing that advertises the resource cannot schedule onto the node that has
+# it.
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+
+# Pass devices as volume mounts rather than through NVIDIA_VISIBLE_DEVICES, to
+# match how lab 10 injected the GPU into the node.
+deviceListStrategy: volume-mounts
+
+# CDI mode is left off deliberately. It depends on NVML reaching libdxcore.so,
+# which is exactly what breaks on WSL2.
+compatWithCPUManager: false
+
+# Uncomment to pretend one GPU is four. Real feature, real EKS use case: it lets
+# several small inference pods share one card. The scheduler's view changes; the
+# hardware does not, so they genuinely contend.
+# config:
+#   map:
+#     default: |-
+#       version: v1
+#       sharing:
+#         timeSlicing:
+#           resources:
+#             - name: nvidia.com/gpu
+#               replicas: 4

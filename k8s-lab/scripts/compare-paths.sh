@@ -20,7 +20,7 @@ echo "  mesh view:"
 istioctl ztunnel-config workload --namespace "$NS" 2>/dev/null | head -5 || echo "  (istioctl not installed)"
 
 echo
-echo "═══ NORTH-SOUTH — from this Mac, through the gateway ═══"
+echo "═══ NORTH-SOUTH — from outside the cluster, through the gateway ═══"
 ./send-release-request.sh http://a2a.localhost:8080 ops_concierge || \
   echo "  gateway not reachable — is lab 50 applied?"
 

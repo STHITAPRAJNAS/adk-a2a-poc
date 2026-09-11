@@ -7,13 +7,16 @@ export KUBECONFIG = $(KUBECONFIG_PATH)
 include versions.env
 export
 
-.PHONY: help doctor versions cluster cluster-down image agents pools istio gateway a2a-gw \
+.PHONY: help doctor versions runbook cluster cluster-down image agents gpu gpu-sim place istio gateway a2a-gw \
         verify compare registry-up registry-down clean
+
+runbook:  ## The step-by-step, start to finish
+	@less RUNBOOK.md 2>/dev/null || cat RUNBOOK.md
 
 help:  ## List targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-doctor:  ## Check this Mac can run the labs
+doctor:  ## Check this machine can run the labs (walks every GPU layer)
 	./scripts/doctor.sh
 
 versions:  ## Show pinned versions and what is current upstream
@@ -42,9 +45,22 @@ agents:  ## Lab 20 — install both agents
 	helm upgrade --install ops-concierge ./charts/adk-agent -n agents \
 	  -f ./charts/adk-agent/values-concierge.yaml --wait
 
-pools:  ## Lab 30 — label and taint the node pools, advertise the fake accelerator
-	cd labs/30-node-groups && terraform init -input=false && terraform apply -auto-approve
-	./scripts/advertise-gpu.sh a2a-lab-worker3 2
+gpu:  ## Lab 30 — configure the GPU node's runtime and install the device plugin
+	./scripts/setup-gpu-node.sh
+	helm repo add nvdp https://nvidia.github.io/k8s-device-plugin && helm repo update nvdp
+	helm upgrade --install nvdp nvdp/nvidia-device-plugin \
+	  -n nvidia-device-plugin --create-namespace --version 0.17.0 \
+	  -f labs/30-node-groups/device-plugin-values.yaml
+	kubectl get nodes -o custom-columns='NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
+
+gpu-sim:  ## Lab 30 fallback — advertise a fake accelerator instead
+	./scripts/advertise-gpu.sh $$(kubectl get nodes -l eks.amazonaws.com/nodegroup=gpu-a10g -o name | cut -d/ -f2) 2
+
+place:  ## Lab 30 — pin the agents off the GPU node group
+	helm upgrade ops-concierge ./charts/adk-agent -n agents \
+	  -f ./charts/adk-agent/values-concierge.yaml -f labs/30-node-groups/agent-placement.yaml
+	helm upgrade deployment-agent ./charts/adk-agent -n agents \
+	  -f ./charts/adk-agent/values-specialist.yaml -f labs/30-node-groups/agent-placement.yaml
 
 istio:  ## Lab 40 — install Istio ambient and enrol the agents namespace
 	./labs/40-istio-ambient/install.sh
