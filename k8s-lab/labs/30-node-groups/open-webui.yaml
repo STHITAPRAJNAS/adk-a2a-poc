@@ -39,12 +39,18 @@ spec:
             # this on anything actually exposed.
             - name: WEBUI_AUTH
               value: "false"
+            # Do RAG embeddings via Ollama instead of loading a local
+            # sentence-transformer at boot — lighter and faster to start.
+            - name: RAG_EMBEDDING_ENGINE
+              value: "ollama"
           resources:
             requests:
               cpu: "250m"
-              memory: 512Mi
-            limits:
               memory: 1Gi
+            limits:
+              # 1Gi OOM-kills it during startup (it loads models into memory);
+              # 3Gi boots cleanly.
+              memory: 3Gi
           volumeMounts:
             - name: data
               mountPath: /app/backend/data
