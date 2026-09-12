@@ -39,21 +39,47 @@ that is Linux, and you are through the hardest conceptual bit.
 Install the current **NVIDIA Game Ready or Studio driver** on Windows from
 nvidia.com. **Never install a GPU driver inside WSL.**
 
-### 0b — Docker Desktop
+### 0b — Docker Engine in WSL (not Docker Desktop)
 
-Install Docker Desktop for Windows. In its settings: enable the **WSL 2 based
-engine**, and under **Resources → WSL Integration** enable your Ubuntu distro.
+Use **Docker Engine installed natively inside Ubuntu**, not Docker Desktop. The
+reason is the GPU: `nvidia-ctk` (step 0e) configures the daemon's runtime by
+editing files in Ubuntu, and only a WSL-native daemon reads them. Docker
+Desktop's daemon runs in its own hidden VM you can't configure that way, so the
+GPU-into-kind trick in Phase 3 can't reach it.
 
-There are **no CPU/memory sliders** with this backend — WSL's limits are
-Docker's. Sizing via `.wslconfig` is *optional* (WSL defaults to a sensible
-share of RAM) and has a trap: Notepad saves it as `.wslconfig.txt`. If you want
-it, write it from **inside Ubuntu** so it can't gain a hidden extension:
+First enable systemd so Docker runs as a service (and keep the DNS setting in the
+same file — `tee` overwrites, so write both sections at once):
 
 ```bash
-printf '[wsl2]\nmemory=12GB\nprocessors=6\n' > /mnt/c/Users/<you>/.wslconfig
+sudo tee /etc/wsl.conf > /dev/null <<'EOF'
+[boot]
+systemd=true
+
+[network]
+generateResolvConf=false
+EOF
+```
+`wsl --shutdown` in PowerShell, reopen, then confirm `systemctl is-system-running`
+reports `running` or `degraded` (both fine).
+
+Install Docker Engine from Docker's official repo (not Ubuntu's `docker.io`):
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker $USER && newgrp docker
+sudo systemctl enable --now docker
+docker run hello-world       # gate: "Hello from Docker!"
 ```
 
-then `wsl --shutdown` in PowerShell to apply. Skip it if unsure.
+`.wslconfig` for memory/CPU sizing is *optional* (WSL defaults to a sensible
+share of RAM) and has a trap: Notepad saves it as `.wslconfig.txt`. If you want
+it, write it from inside Ubuntu: `printf '[wsl2]\nmemory=12GB\n' >
+/mnt/c/Users/<you>/.wslconfig`, then `wsl --shutdown`.
 
 ### 0c — ⚠️ Networking sanity check — BEFORE any `apt` or `curl`
 
