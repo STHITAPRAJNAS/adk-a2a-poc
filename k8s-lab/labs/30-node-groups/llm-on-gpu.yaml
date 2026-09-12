@@ -1,0 +1,91 @@
+# A real LLM on the GPU node — the payoff for making nvidia.com/gpu schedulable.
+#
+# Ollama auto-detects the injected GPU, loads the model's layers into VRAM, and
+# serves an OpenAI-compatible API on :11434. Watch `nvidia-smi` while it answers
+# and you will see VRAM fill and GPU-Util spike — the card doing real work,
+# inside a pod, on a node group you built.
+#
+#   kubectl apply -f llm-on-gpu.yaml
+#   kubectl -n llm rollout status deploy/ollama
+#   kubectl -n llm exec deploy/ollama -- ollama pull llama3.2:1b
+#   kubectl -n llm exec deploy/ollama -- ollama run llama3.2:1b "one sentence on GPUs"
+#
+# Remember: GPUs are not shared by default. Delete gpu-good first or this pod
+# waits behind it:
+#   kubectl -n scheduling-lab delete pod gpu-good --ignore-not-found
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: llm
+  labels: { app: ollama }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ollama }
+  template:
+    metadata:
+      labels: { app: ollama }
+    spec:
+      # Same three lines that put gpu-good on the GPU node: choose the pool,
+      # tolerate its taint, and (below) request the countable GPU resource.
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: gpu-a10g
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - name: http
+              containerPort: 11434
+          env:
+            # Serve on all interfaces so the Service can reach it.
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+            # Keep the model resident so nvidia-smi keeps showing it, instead of
+            # unloading after 5 min idle. -1 = never unload.
+            - name: OLLAMA_KEEP_ALIVE
+              value: "-1"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 2Gi
+            limits:
+              # One whole card. The 3080 has 10 GB — room for up to ~7B (Q4).
+              nvidia.com/gpu: 1
+              memory: 8Gi
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+      volumes:
+        # emptyDir: models live only for the pod's lifetime — fine for a lab.
+        # Swap for a PVC (kind ships a default 'standard' StorageClass) if you
+        # want pulled models to survive a pod restart.
+        - name: models
+          emptyDir:
+            sizeLimit: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: llm
+spec:
+  selector: { app: ollama }
+  ports:
+    - name: http
+      port: 11434
+      targetPort: http
