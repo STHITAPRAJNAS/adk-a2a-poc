@@ -107,6 +107,39 @@ kubectl -n scheduling-lab describe pod gpu-too-greedy | tail -4
 **Learn to read that line.** It names which predicate rejected which nodes, and
 it answers almost every "why is my pod Pending" question you will ever be asked.
 
+## A real LLM on the GPU (optional, but it's the payoff)
+
+The scheduling demo proves the GPU is *schedulable*. This proves it *works*.
+Ollama auto-detects the injected card, loads a model into VRAM, and serves it.
+
+```bash
+# GPUs are not shared — free the card the demo pod is holding first.
+kubectl -n scheduling-lab delete pod gpu-good --ignore-not-found
+
+kubectl apply -f llm-on-gpu.yaml
+kubectl -n llm rollout status deploy/ollama      # first run pulls a ~3.7 GB image
+
+kubectl -n llm exec deploy/ollama -- ollama pull llama3.2:1b
+kubectl -n llm exec deploy/ollama -- ollama run llama3.2:1b "one sentence on GPUs"
+kubectl -n llm exec deploy/ollama -- nvidia-smi
+```
+
+What tells you it worked:
+
+- the logs say `library=CUDA ... name="NVIDIA GeForce RTX 3080"` — Ollama found
+  the card, not the CPU fallback.
+- `nvidia-smi` shows a `/llama-server` process with a **`C`** (Compute) context
+  holding ~2–4 GB — the model resident in VRAM. The `G` line is just the display.
+- the answer comes back in well under a second.
+
+Same three lines put this pod on the GPU node as put `gpu-good` there:
+nodeSelector + toleration + `nvidia.com/gpu: 1`. Once the plumbing works, every
+GPU workload is that same pattern — that is the whole point of the node group.
+
+Bigger models still fit the 10 GB card: `llama3.2:3b`, `qwen2.5:7b` (Q4 ~4.5 GB).
+Point the agents at this in-cluster endpoint (`http://ollama.llm:11434`) to run
+the A2A negotiation on real local inference instead of the scripted fake LLM.
+
 ## Pin the agents to the general pool
 
 ```bash
