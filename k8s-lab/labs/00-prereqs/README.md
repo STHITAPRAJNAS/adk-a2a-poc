@@ -13,10 +13,12 @@ why behind each choice.
 |---|---|
 | **WSL2 + Ubuntu 24.04** | `wsl --install -d Ubuntu-24.04`. All labs run here. |
 | **NVIDIA driver** | Game Ready or Studio, from nvidia.com. Includes WSL support. **Never install a driver inside WSL** — it will shadow the paravirtualised one and break GPU access. |
-| **Docker Desktop** | WSL2 backend on, integration enabled for your distro, Resources set to **8+ GB / 4+ CPUs**. |
+| **Docker Desktop** | WSL2 backend on, integration enabled for your distro. No resource sliders with this backend — size WSL itself in `.wslconfig` (below). |
+| **`.wslconfig`** | `C:\Users\<you>\.wslconfig` with `memory=12GB`, `processors=6`. Then `wsl --shutdown`. This is the setting that decides whether the cluster fits. |
 
 Four kind nodes plus Istio plus two gateways is not a small footprint. 4 GB will
-give you nodes stuck `NotReady` and no obvious reason why.
+give you nodes stuck `NotReady` and no obvious reason why — the kubelet evicts
+quietly and the events scroll past.
 
 ## Inside WSL
 

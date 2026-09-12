@@ -36,8 +36,13 @@ if ! docker info >/dev/null 2>&1; then
 else
   CPUS=$(docker info --format '{{.NCPU}}' 2>/dev/null)
   MEMG=$(( $(docker info --format '{{.MemTotal}}' 2>/dev/null) / 1024 / 1024 / 1024 ))
-  [ "${CPUS:-0}" -ge 4 ] && good "${CPUS} CPUs" || warn "${CPUS} CPUs — give it at least 4"
-  [ "$MEMG" -ge 8 ] && good "${MEMG}GB RAM" || bad "${MEMG}GB RAM — four kind nodes plus Istio needs ~8GB"
+  [ "${CPUS:-0}" -ge 4 ] && good "${CPUS} CPUs" || warn "${CPUS} CPUs — raise processors= in C:\\Users\\<you>\\.wslconfig"
+  if [ "$MEMG" -ge 8 ]; then good "${MEMG}GB RAM"
+  else
+    bad "${MEMG}GB RAM — four kind nodes plus Istio needs ~8GB"
+    warn "      Docker Desktop has no memory slider on the WSL2 backend."
+    warn "      Set memory=12GB in C:\\Users\\<you>\\.wslconfig, then: wsl --shutdown"
+  fi
 fi
 
 echo

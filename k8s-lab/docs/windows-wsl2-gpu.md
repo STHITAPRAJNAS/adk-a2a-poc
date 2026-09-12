@@ -78,8 +78,28 @@ not, nothing downstream will work; fix it before continuing.
 Docker Desktop → Settings → General → **Use the WSL 2 based engine**, and under
 Resources → WSL Integration, enable your Ubuntu distro.
 
-Give it room. Settings → Resources: **8+ GB RAM, 4+ CPUs**. Four kind nodes plus
-Istio plus two gateways is not a small footprint.
+**Do not look for CPU and memory sliders in Docker Desktop — with the WSL2
+backend there are none.** Docker runs inside WSL, so WSL's limits are Docker's
+limits, and those live in a file on the Windows side. Create
+`C:\Users\<you>\.wslconfig`:
+
+```ini
+[wsl2]
+memory=12GB
+processors=6
+swap=4GB
+```
+
+Then, from PowerShell:
+
+```powershell
+wsl --shutdown          # the only way to make .wslconfig take effect
+```
+
+Four kind nodes plus Istio plus two gateways is not a small footprint. Left to
+its default WSL will claim up to half your RAM, which is usually fine — set this
+explicitly anyway, so a memory problem is a number you chose rather than one you
+have to go and discover.
 
 **Check**, inside WSL:
 

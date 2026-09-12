@@ -25,8 +25,18 @@ wsl --update
 Install the current **NVIDIA Game Ready or Studio driver** on Windows. Never
 install a GPU driver inside WSL.
 
-In Docker Desktop: enable the **WSL 2 based engine**, enable integration for your
-Ubuntu distro, and set Resources to **8+ GB RAM and 4+ CPUs**.
+In Docker Desktop: enable the **WSL 2 based engine** and enable integration for
+your Ubuntu distro. There are no CPU/memory sliders with this backend — WSL's
+limits are Docker's limits. Create `C:\Users\<you>\.wslconfig`:
+
+```ini
+[wsl2]
+memory=12GB
+processors=6
+swap=4GB
+```
+
+then `wsl --shutdown` from PowerShell to apply it.
 
 Then, inside WSL:
 
