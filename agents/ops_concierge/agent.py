@@ -26,7 +26,7 @@ from google.adk.agents import LlmAgent
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.apps import App, ResumabilityConfig
 
-from common.config import get_settings
+from common.config import get_settings, resolve_model
 
 _INSTRUCTION = """\
 You are the Ops Concierge. You talk to platform engineers about releases.
@@ -119,7 +119,7 @@ def build_agent() -> LlmAgent:
 
         model = build_orchestrator_model()
     else:
-        model = settings.orchestrator_model
+        model = resolve_model(settings.orchestrator_model)
 
     return LlmAgent(
         name="ops_concierge",

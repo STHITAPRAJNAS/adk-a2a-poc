@@ -10,6 +10,10 @@ dependencies = [
     "python-dotenv>=1.0",
     "uvicorn>=0.30",
     "httpx>=0.27",
+    # LiteLLM is ADK's bridge to non-Gemini models. Only exercised on the
+    # Ollama path (OLLAMA_API_BASE set); imported lazily so the default Gemini
+    # path never pays for it. See common.config.resolve_model.
+    "litellm>=1.51",
 ]
 
 [project.optional-dependencies]

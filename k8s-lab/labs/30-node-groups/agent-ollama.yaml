@@ -1,0 +1,30 @@
+# Overlay: run the agents on the in-cluster GPU LLM instead of the fake model.
+#
+# Layer it AFTER the base values and the placement overlay, so the agents keep
+# their off-GPU placement and only their model wiring changes:
+#
+#   helm upgrade ops-concierge ../../charts/adk-agent -n agents \
+#     -f ../../charts/adk-agent/values-concierge.yaml \
+#     -f ./agent-placement.yaml -f ./agent-ollama.yaml
+#   helm upgrade deployment-agent ../../charts/adk-agent -n agents \
+#     -f ../../charts/adk-agent/values-specialist.yaml \
+#     -f ./agent-placement.yaml -f ./agent-ollama.yaml
+#
+# Helm deep-merges the env map, so these keys add to / override the base env.
+# Both model keys are set here even though each agent reads only its own — a
+# shared overlay is simpler than one per agent, and the unused key is inert.
+env:
+  # Turn the scripted model OFF. _env_bool treats "0" as false.
+  POC_FAKE_LLM: "0"
+
+  # The switch that flips common.config.resolve_model onto the LiteLLM path.
+  # Cross-namespace DNS: <service>.<namespace> — Ollama's Service is `ollama`
+  # in the `llm` namespace.
+  OLLAMA_API_BASE: "http://ollama.llm:11434"
+
+  # qwen2.5:7b, not a 1B model: the deployment agent runs a 5-step tool-calling
+  # procedure with long-running approval gates, which needs a model that is
+  # actually good at function calling. Q4 is ~4.7 GB — fits the 10 GB card.
+  # `ollama pull qwen2.5:7b` into the Ollama pod before rolling this out.
+  ORCHESTRATOR_MODEL: "qwen2.5:7b"
+  DEPLOYMENT_AGENT_MODEL: "qwen2.5:7b"

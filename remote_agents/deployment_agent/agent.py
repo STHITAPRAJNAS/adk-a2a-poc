@@ -16,7 +16,7 @@ from __future__ import annotations
 from google.adk.agents import LlmAgent
 from google.adk.apps import App, ResumabilityConfig
 
-from common.config import get_settings
+from common.config import get_settings, resolve_model
 
 from . import tools
 
@@ -63,7 +63,7 @@ def build_agent() -> LlmAgent:
 
         model = build_deployment_agent_model()
     else:
-        model = settings.deployment_agent_model
+        model = resolve_model(settings.deployment_agent_model)
 
     return LlmAgent(
         name="deployment_agent",

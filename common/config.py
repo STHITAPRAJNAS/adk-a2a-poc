@@ -112,6 +112,31 @@ ORCHESTRATOR_AGENTS_DIR = REPO_ROOT / "agents"
 REMOTE_AGENTS_DIR = REPO_ROOT / "remote_agents"
 
 
+def resolve_model(model_name: str):
+    """Return a model object ``LlmAgent`` will accept.
+
+    Default behaviour is unchanged: a bare model id string (a Gemini model)
+    is returned as-is and ADK's built-in registry handles it.
+
+    When ``OLLAMA_API_BASE`` is set, the id is routed through LiteLLM to an
+    Ollama server instead — so the same agents can run on a local/in-cluster
+    GPU with no Gemini key. A model id that already carries a provider prefix
+    (``ollama_chat/...``, ``openai/...``) is passed through untouched;
+    otherwise ``ollama_chat/`` is assumed, which is the provider that speaks
+    Ollama's chat + tool-calling API.
+    """
+    api_base = os.environ.get("OLLAMA_API_BASE", "").strip()
+    if not api_base:
+        return model_name
+
+    # Imported lazily: litellm is only needed on the Ollama path, and it is a
+    # heavy import to pay for on the default Gemini path.
+    from google.adk.models.lite_llm import LiteLlm
+
+    litellm_model = model_name if "/" in model_name else f"ollama_chat/{model_name}"
+    return LiteLlm(model=litellm_model, api_base=api_base)
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Reads settings once per process."""
