@@ -234,6 +234,18 @@ at registration. → [lab 10](labs/10-cluster/)
 
 ## Phase 2 — the agents  ·  ~10 min
 
+**Two agents, not three.** The file names use a role word that can read like a
+third agent — it isn't:
+
+| Agent (its real name) | Role | Also called | Helm release | Values file |
+|---|---|---|---|---|
+| `ops_concierge` | front door — takes the request, delegates over A2A | "concierge" | `ops-concierge` | `values-concierge.yaml` |
+| `deployment_agent` | worker — readiness, approvals, deploys | "the specialist" | `deployment-agent` | `values-specialist.yaml` |
+
+The concierge never does the work; it delegates over A2A to the deployment
+agent, which parks at `input-required` on the human-approval gate. That parked
+state surviving the cluster network hop is what Gate 2 proves.
+
 ```bash
 cd ../..
 ./images/build.sh                                   # builds for amd64 on Windows
