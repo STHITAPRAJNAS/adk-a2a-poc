@@ -102,52 +102,95 @@ ping -4 -c 3 8.8.8.8 && getent hosts archive.ubuntu.com
 > — DNS fixes, IPv4 forcing, Ethernet→WiFi, wedged services. Do not proceed on a
 > half-working network; every later step will fail confusingly.
 
+### How to read the install commands below
+
+Ubuntu installs software with `apt`, which only trusts **repositories** it knows
+about, and only accepts packages signed by a **key** it holds. Docker, NVIDIA,
+HashiCorp and Istio aren't in Ubuntu's default repositories (or they ship newer
+versions there), so for each one you do the **same four-step dance** — once you
+recognise it, every block below reads the same:
+
+1. **Fetch the vendor's signing key** — `curl <key-url> | sudo gpg --dearmor -o
+   /usr/share/keyrings/<name>.gpg`. `--dearmor` converts the key from text to the
+   binary form apt expects. This key is how apt later proves a package genuinely
+   came from that vendor and wasn't tampered with in transit.
+2. **Register the repository** — `echo "deb [signed-by=<the key>] <repo-url> …" |
+   sudo tee /etc/apt/sources.list.d/<name>.list`. This tells apt *where* to fetch
+   that vendor's packages and *which key* must have signed them. `signed-by=`
+   ties the repo to the key from step 1.
+3. **Refresh** — `sudo apt update` re-reads all repo package lists, now including
+   the new one.
+4. **Install** — `sudo apt install -y <package>`.
+
+`sudo tee <file>` just means "write this text to a file that needs root"; it's
+used instead of `>` because `>` can't write to a root-owned location under sudo.
+
 ### 0d — Update Ubuntu and base packages
 
 ```bash
-sudo apt update && sudo apt upgrade -y
+sudo apt update && sudo apt upgrade -y   # refresh package lists, then upgrade everything installed
+# tools the later steps rely on: curl/wget download, gnupg handles keys,
+# ca-certificates lets HTTPS be verified, lsb-release reports your Ubuntu codename
 sudo apt install -y curl wget git jq ca-certificates gnupg lsb-release apt-transport-https
 ```
 
-### 0e — NVIDIA Container Toolkit
+### 0e — NVIDIA Container Toolkit (lets containers use the GPU)
 
 ```bash
+# step 1 — fetch NVIDIA's signing key (see "the four-step dance" above)
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
   | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+# step 2 — register NVIDIA's repo, rewriting its lines to reference that key
 curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
   | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
   | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+# steps 3 + 4 — refresh and install
 sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
 
-# the two settings that make a GPU node group possible
+# the two settings that make a GPU node group possible:
+# (a) register NVIDIA's runtime in /etc/docker/daemon.json and make it Docker's default,
+#     so any container can be given the GPU
 sudo nvidia-ctk runtime configure --runtime=docker --set-as-default
+# (b) tell that runtime to treat a mount under /var/run/nvidia-container-devices/
+#     as "inject this GPU" — the trick kind uses to give the GPU to ONE node in Phase 3
 sudo nvidia-ctk config --set accept-nvidia-visible-devices-as-volume-mounts=true --in-place
+
+# apply the daemon.json change
+sudo systemctl restart docker
 ```
-Then restart Docker Desktop from Windows (tray → Restart), or `sudo systemctl
-restart docker` if you run docker inside WSL directly.
+
+Verify the GPU reaches a container (this is the real proof the stack works):
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.6.2-base-ubuntu24.04 nvidia-smi   # should print your GPU
+docker run --rm -v /dev/null:/var/run/nvidia-container-devices/all ubuntu:24.04 nvidia-smi -L  # the kind injection mechanism
+```
 
 ### 0f — CLI tools
 
-Run in order; if any one errors, stop and fix that one.
+Run in order; if any one errors, stop and fix that one. These are downloaded as
+single binaries (kubectl, kind) or via a script (helm) rather than apt, except
+terraform which uses the four-step repo dance.
 
 ```bash
-# kubectl
+# kubectl — download the latest stable release binary, then place it in your PATH.
+# `install -o root -g root -m 0755` copies it owned by root and executable (0755).
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm kubectl
 
-# kind
+# kind — download the release binary, make it executable (chmod +x), move into PATH
 curl -Lo ./kind "https://github.com/kubernetes-sigs/kind/releases/latest/download/kind-linux-amd64"
 chmod +x ./kind && sudo mv ./kind /usr/local/bin/kind
 
-# helm
+# helm — run its official installer script (the pipe-to-bash the maintainers publish)
 curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-# terraform
+# terraform — the four-step repo dance: key, repo, refresh, install
 wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
 sudo apt update && sudo apt install -y terraform
 
-# istioctl
+# istioctl — its installer downloads Istio into ~/istio-*, then we move the binary into PATH
 cd ~ && curl -L https://istio.io/downloadIstio | sh - && sudo mv istio-*/bin/istioctl /usr/local/bin/
 ```
 
