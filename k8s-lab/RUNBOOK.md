@@ -522,8 +522,11 @@ up in seconds.
 # stop GPU + LLM load, keep everything defined
 kubectl -n llm    scale deploy/ollama deploy/open-webui --replicas=0
 kubectl -n agents scale deploy/ops-concierge deploy/deployment-agent --replicas=0
-kubectl -n nvidia-device-plugin scale ds/nvdp-nvidia-device-plugin --replicas=0 2>/dev/null || true
 ```
+
+Scaling `ollama` to zero unloads the model from VRAM — that is what actually drops
+GPU power draw (the card idles at ~P8). The NVIDIA device plugin is a DaemonSet
+and holds no VRAM, so leave it; it costs nothing to keep advertising the GPU.
 
 Bring it back later:
 
