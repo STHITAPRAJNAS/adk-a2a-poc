@@ -297,9 +297,33 @@ kubectl -n scheduling-lab logs gpu-good     # your actual GPU, from inside a pod
 One `Running`, two `Pending` — and the two Pending pods are Pending for
 **different reasons**. Read both `describe` outputs; that is the lab.
 
-If the device plugin will not find devices, that is the known WSL2 issue: take
-the simulated path in [lab 30](labs/30-node-groups/#fallback-no-hardware) and
-carry on. Do not lose a day here.
+```bash
+kubectl -n scheduling-lab describe pod gpu-no-toleration | tail -4
+#   …2 node(s) didn't match node affinity/selector, 2 node(s) had untolerated taint(s)
+#   the GPU node is in the TAINT bucket — the pod reached it, then bounced. Structural.
+kubectl -n scheduling-lab describe pod gpu-too-greedy | tail -4
+#   …1 Insufficient nvidia.com/gpu, 1 untolerated taint, 2 didn't match selector
+#   the GPU node is in the RESOURCE bucket — it passed taint+selector, failed on count. Arithmetic.
+```
+
+Same node, two different walls, depending on how far the pod's spec let it walk.
+Learning to read `X didn't match selector / Y untolerated taint / Z Insufficient
+<resource>` diagnoses most "why is my pod Pending" on sight.
+
+**Two things that will trip you here:**
+
+- `nvidia.com/gpu` shows `<none>` **right after** the helm install. That is a
+  timing race, not a failure — the kubelet needs a few seconds to pick up the
+  newly-registered plugin. `sleep 10` and re-check before assuming WSL2 trouble.
+- `device-plugin-values.yaml` is a **Helm values file** — pass it with `helm -f`,
+  never `kubectl apply` it (it has no `kind:`, so kubectl errors on it). Only
+  `gpu-workloads.yaml` (which has `kind:`) is `kubectl apply`d. Rule: `*-values.yaml`
+  → Helm; a file with `kind:` at the top → kubectl.
+
+If the device plugin genuinely will not find devices after that `sleep`, it is
+the known WSL2 issue: take the simulated path in
+[lab 30](labs/30-node-groups/#fallback-no-hardware) and carry on. Do not lose a
+day here.
 
 Then pin the agents off the GPU pool:
 
