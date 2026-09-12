@@ -336,6 +336,76 @@ helm upgrade deployment-agent ./charts/adk-agent -n agents \
 
 ---
 
+## Phase 3½ — real GPU inference: Ollama, agents, chat UI  ·  ~20 min
+
+Optional, but it is the payoff: a real LLM on the GPU node, the two agents
+running on it instead of the scripted model, and a browser chat UI. All
+manifests live in `labs/30-node-groups/`.
+
+**1. Serve a model on the GPU.** `gpu-good` from Phase 3 holds the only card;
+GPUs are not shared, so free it first.
+
+```bash
+kubectl -n scheduling-lab delete pod gpu-good --ignore-not-found
+kubectl apply -f labs/30-node-groups/llm-on-gpu.yaml
+kubectl -n llm rollout status deploy/ollama            # first pull is a ~3.7 GB image
+kubectl -n llm exec deploy/ollama -- ollama pull qwen2.5:7b   # tool-capable, ~4.7 GB
+kubectl -n llm exec deploy/ollama -- nvidia-smi        # /llama-server holding VRAM = working
+```
+
+**2. Point the agents at it.** The image needs `google-adk[extensions]` (bundles
+LiteLLM) — already in the Dockerfile — so rebuild, then roll with the Ollama
+overlay layered after base + placement.
+
+```bash
+./images/build.sh                                       # rebuild + kind load
+cd labs/30-node-groups
+helm upgrade ops-concierge ../../charts/adk-agent -n agents \
+  -f ../../charts/adk-agent/values-concierge.yaml -f ./agent-placement.yaml -f ./agent-ollama.yaml
+helm upgrade deployment-agent ../../charts/adk-agent -n agents \
+  -f ../../charts/adk-agent/values-specialist.yaml -f ./agent-placement.yaml -f ./agent-ollama.yaml
+kubectl -n agents rollout restart deploy/ops-concierge deploy/deployment-agent
+cd ../..
+```
+
+`resolve_model` (common/config.py) switches to LiteLLM whenever `OLLAMA_API_BASE`
+is set; the overlay sets it to `http://ollama.llm:11434` and turns off
+`POC_FAKE_LLM`. Both the Gemini and fake paths are unchanged when it is unset.
+
+**3. Chat UI + Dev UIs from Windows.** Each `port-forward` blocks — own terminal,
+`KUBECONFIG` exported, leave running. `localhost` forwards from Windows into WSL2.
+
+```bash
+kubectl -n llm     port-forward svc/open-webui     3000:8080   # http://localhost:3000
+kubectl -n agents  port-forward svc/ops-concierge  8000:8000   # /dev-ui?app=ops_concierge
+kubectl -n agents  port-forward svc/deployment-agent 8001:8001 # /dev-ui?app=deployment_agent
+```
+(Open WebUI: `kubectl apply -f labs/30-node-groups/open-webui.yaml` first; it needs
+`3Gi` — `1Gi` OOM-loops on startup.)
+
+### ▸ Gate 3½
+
+- Open WebUI (`localhost:3000`) answers, and `nvidia-smi` shows GPU-Util spike.
+- In the concierge Dev UI, `deploy checkout-api 2.14.0 to production` **pauses at
+  the approval gate**; typing `approved` resumes it to completion. That is HITL:
+  the Dev UI submits your reply as the **function response** for the pending
+  long-running call, routed across the A2A hop onto the same task (needs
+  `ResumabilityConfig(is_resumable=True)` — it is on). `staging` instead of
+  `production` runs straight through with no gate.
+
+**Common trip-ups (all hit during the real run):**
+
+- `port-forward` fails with *connection refused inside the pod* → the app has not
+  finished booting (or crash-looped). Wait for `rollout status` / the "Uvicorn
+  running" log line first. It is the pod, not your networking.
+- `kubectl` → `localhost:8080 ... EOF` in a fresh shell → `KUBECONFIG` is not set.
+  `export KUBECONFIG=~/adk-a2a-poc/k8s-lab/labs/10-cluster/kubeconfig` (add it to
+  `~/.bashrc`).
+- `pip install` → `externally-managed-environment` → use a venv, not
+  `--break-system-packages`.
+
+---
+
 ## Phase 4 — service mesh, east-west  ·  ~10 min
 
 ```bash
@@ -442,7 +512,69 @@ everybody pays for.
 
 ---
 
-## Teardown and restart
+## Pausing to save power (keep the cluster, stop the GPU work)
+
+You do not need to destroy anything to stop the GPU spinning. Scale the heavy
+workloads to zero; the cluster and all config stay put, and you scale them back
+up in seconds.
+
+```bash
+# stop GPU + LLM load, keep everything defined
+kubectl -n llm    scale deploy/ollama deploy/open-webui --replicas=0
+kubectl -n agents scale deploy/ops-concierge deploy/deployment-agent --replicas=0
+kubectl -n nvidia-device-plugin scale ds/nvdp-nvidia-device-plugin --replicas=0 2>/dev/null || true
+```
+
+Bring it back later:
+
+```bash
+kubectl -n llm    scale deploy/ollama deploy/open-webui --replicas=1
+kubectl -n agents scale deploy/ops-concierge deploy/deployment-agent --replicas=1
+```
+
+To stop *everything* (frees the most RAM/CPU) without losing the cluster, stop the
+kind node containers — see reboot recovery below, which is the same `docker start`.
+
+## Restarting after a Windows reboot
+
+The cluster is kind (Docker containers), not real EKS, so a reboot stops it but
+does **not** destroy it — etcd, deployments and volumes persist in the node
+containers. Bring it back in order; nothing here is a rebuild.
+
+```powershell
+# 1. Windows: start WSL
+wsl
+```
+```bash
+# 2. WSL: make sure the Docker daemon is up (docker-ce runs under systemd)
+sudo service docker start 2>/dev/null || sudo systemctl start docker
+docker info >/dev/null && echo "docker up"
+
+# 3. start the kind node containers (they were stopped, not removed)
+docker ps -a --filter "name=a2a-lab" --format '{{.Names}}\t{{.Status}}'
+docker start $(docker ps -a --filter "name=a2a-lab" -q)
+
+# 4. point this shell at the cluster and wait for the API to answer
+export KUBECONFIG=~/adk-a2a-poc/k8s-lab/labs/10-cluster/kubeconfig
+kubectl wait --for=condition=Ready nodes --all --timeout=180s
+kubectl get pods -A          # workloads restart themselves once nodes are Ready
+```
+
+Then, only if you scaled things to zero before shutting down, scale them back
+(step above). Two reboot-specific gotchas:
+
+- **Ollama models may need re-pulling.** They live in an `emptyDir`; a pod that is
+  *recreated* (not just restarted) loses them. If `ollama list` is empty:
+  `kubectl -n llm exec deploy/ollama -- ollama pull qwen2.5:7b`. (Use a PVC instead
+  of `emptyDir` in `llm-on-gpu.yaml` if you want them to survive.)
+- **Port-forwards do not survive** anything — they are per-shell processes. Start
+  them again after every reboot (Phase 3½, step 3).
+
+If the GPU does not come back (`nvidia-smi` fails inside the node), re-run
+`./scripts/setup-gpu-node.sh` — the containerd nvidia config persists, but the
+runtime occasionally needs a nudge after a cold boot.
+
+## Rebuilding from scratch
 
 ```bash
 make clean                 # destroy the cluster and the registry
@@ -451,7 +583,8 @@ cd labs/10-cluster && terraform apply    # ~3 min to rebuild
 
 Rebuilding is almost always faster than forensics. Do it whenever the cluster is
 in a state you cannot explain — that disposability is the main practical
-advantage a local cluster has over EKS, so use it.
+advantage a local cluster has over EKS, so use it. (After a rebuild you redo the
+agent build/deploy and the Phase 3½ LLM steps, since those live in the cluster.)
 
 ## Where the state lives
 
@@ -460,7 +593,9 @@ advantage a local cluster has over EKS, so use it.
 | kubeconfig | `labs/10-cluster/kubeconfig` |
 | Terraform state | `labs/10-cluster/terraform.tfstate` (gitignored) |
 | Agent image | your WSL Docker daemon, loaded into kind |
+| kind node containers | your WSL Docker daemon — survive a reboot (stopped, not removed) |
+| Ollama models | `emptyDir` in the ollama pod — lost if the pod is recreated |
 | Everything else | in the cluster, gone on `make clean` |
 
-Nothing here touches Windows outside Docker Desktop, and nothing costs money
-until lab 90.
+Nothing here touches Windows outside the Docker Engine running in WSL, and
+nothing costs money until lab 90.
