@@ -19,8 +19,12 @@ WORKDIR /app
 # rebuild, google-adk does not, and this is the difference between a 5-second
 # and a 3-minute inner loop.
 COPY pyproject.toml ./
+# The `extensions` extra pulls in LiteLLM, which ADK requires for non-Gemini
+# models (the Ollama path in common.config.resolve_model). Without it, loading
+# an agent whose model is a LiteLlm instance fails at import with
+# "LiteLLM support requires: pip install google-adk[extensions]".
 RUN pip install --no-cache-dir \
-        "google-adk[a2a]==2.8.0" \
+        "google-adk[a2a,extensions]==2.8.0" \
         "a2a-sdk==1.1.2" \
         "python-dotenv>=1.0" \
         "uvicorn>=0.30" \

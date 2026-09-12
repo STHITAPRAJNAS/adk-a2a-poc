@@ -5,15 +5,15 @@ description = "Google ADK + A2A proof of concept: two agents wired over the A2A 
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "google-adk[a2a]==2.8.0",
+    # `extensions` bundles LiteLLM, ADK's bridge to non-Gemini models. It is only
+    # exercised on the Ollama path (OLLAMA_API_BASE set) and imported lazily, but
+    # ADK gates LiteLlm behind this extra — a bare `litellm` install is not
+    # enough. See common.config.resolve_model.
+    "google-adk[a2a,extensions]==2.8.0",
     "a2a-sdk==1.1.2",
     "python-dotenv>=1.0",
     "uvicorn>=0.30",
     "httpx>=0.27",
-    # LiteLLM is ADK's bridge to non-Gemini models. Only exercised on the
-    # Ollama path (OLLAMA_API_BASE set); imported lazily so the default Gemini
-    # path never pays for it. See common.config.resolve_model.
-    "litellm>=1.51",
 ]
 
 [project.optional-dependencies]
