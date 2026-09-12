@@ -12,68 +12,131 @@ Do not push past a failed gate — every layer here assumes the one below it.
 
 ---
 
-## Phase 0 — the machine  ·  ~20 min
+## Phase 0 — the machine  ·  ~30 min
 
-Full detail: [docs/windows-wsl2-gpu.md](docs/windows-wsl2-gpu.md)
+Full detail, and the troubleshooting you will probably need at least once:
+[docs/windows-wsl2-gpu.md](docs/windows-wsl2-gpu.md).
+
+**New to WSL?** The 30-second version: you will use two kinds of terminal.
+`PS C:\Users\you>` is **PowerShell (Windows)** — run `wsl` commands there.
+`you@MACHINE:...$` is **Ubuntu (Linux)** — run everything else there. A `wsl`
+command inside Ubuntu says "command not found"; that just means wrong window.
+Linux never shows password characters as you type — that is normal.
+
+### 0a — Install WSL + Ubuntu
+
+PowerShell **as Administrator**:
 
 ```powershell
-# PowerShell, as Administrator
 wsl --install -d Ubuntu-24.04
-wsl --update
 ```
 
-Install the current **NVIDIA Game Ready or Studio driver** on Windows. Never
-install a GPU driver inside WSL.
+**Reboot when it tells you to.** After the reboot a terminal opens on its own and
+asks you to create a Linux username and password (the password is invisible as
+you type — type it, Enter, retype). You land at a green `you@MACHINE:~$` prompt:
+that is Linux, and you are through the hardest conceptual bit.
 
-In Docker Desktop: enable the **WSL 2 based engine** and enable integration for
-your Ubuntu distro. There are no CPU/memory sliders with this backend — WSL's
-limits are Docker's limits. Create `C:\Users\<you>\.wslconfig`:
+Install the current **NVIDIA Game Ready or Studio driver** on Windows from
+nvidia.com. **Never install a GPU driver inside WSL.**
 
-```ini
-[wsl2]
-memory=12GB
-processors=6
-swap=4GB
-```
+### 0b — Docker Desktop
 
-then `wsl --shutdown` from PowerShell to apply it.
+Install Docker Desktop for Windows. In its settings: enable the **WSL 2 based
+engine**, and under **Resources → WSL Integration** enable your Ubuntu distro.
 
-Then, inside WSL:
+There are **no CPU/memory sliders** with this backend — WSL's limits are
+Docker's. Sizing via `.wslconfig` is *optional* (WSL defaults to a sensible
+share of RAM) and has a trap: Notepad saves it as `.wslconfig.txt`. If you want
+it, write it from **inside Ubuntu** so it can't gain a hidden extension:
 
 ```bash
-# NVIDIA Container Toolkit
+printf '[wsl2]\nmemory=12GB\nprocessors=6\n' > /mnt/c/Users/<you>/.wslconfig
+```
+
+then `wsl --shutdown` in PowerShell to apply. Skip it if unsure.
+
+### 0c — ⚠️ Networking sanity check — BEFORE any `apt` or `curl`
+
+Nothing below works without outbound internet from Ubuntu, and WSL networking is
+the single most common thing to break. Test it first — in Ubuntu:
+
+```bash
+ping -4 -c 3 8.8.8.8 && getent hosts archive.ubuntu.com
+```
+
+**Both must succeed** (replies, then an IP for the hostname).
+
+> **If either fails, STOP and fix it before going on.** The overwhelmingly
+> common cause is a **VPN client — NordVPN, ExpressVPN, OpenVPN — even one you
+> never logged into.** Their filter drivers block WSL's network at boot. Quit it
+> completely from the Windows system tray (right-click → Quit, not just
+> "disconnect"), turn off its kill switch and launch-at-startup, then
+> `wsl --shutdown` and retest. Full diagnosis for every symptom is in
+> [docs/windows-wsl2-gpu.md#wsl-networking-troubleshooting](docs/windows-wsl2-gpu.md#wsl-networking-troubleshooting)
+> — DNS fixes, IPv4 forcing, Ethernet→WiFi, wedged services. Do not proceed on a
+> half-working network; every later step will fail confusingly.
+
+### 0d — Update Ubuntu and base packages
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget git jq ca-certificates gnupg lsb-release apt-transport-https
+```
+
+### 0e — NVIDIA Container Toolkit
+
+```bash
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
   | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
 curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
   | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
   | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit jq
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
 
 # the two settings that make a GPU node group possible
 sudo nvidia-ctk runtime configure --runtime=docker --set-as-default
 sudo nvidia-ctk config --set accept-nvidia-visible-devices-as-volume-mounts=true --in-place
-sudo systemctl restart docker    # or restart Docker Desktop
+```
+Then restart Docker Desktop from Windows (tray → Restart), or `sudo systemctl
+restart docker` if you run docker inside WSL directly.
 
-# CLI tools
-curl -Lo kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64 && chmod +x kind && sudo mv kind /usr/local/bin/
-curl -LO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+### 0f — CLI tools
+
+Run in order; if any one errors, stop and fix that one.
+
+```bash
+# kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm kubectl
+
+# kind
+curl -Lo ./kind "https://github.com/kubernetes-sigs/kind/releases/latest/download/kind-linux-amd64"
+chmod +x ./kind && sudo mv ./kind /usr/local/bin/kind
+
+# helm
 curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt-get update && sudo apt-get install -y terraform
-curl -L https://istio.io/downloadIstio | sh - && sudo mv istio-*/bin/istioctl /usr/local/bin/
+
+# terraform
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install -y terraform
+
+# istioctl
+cd ~ && curl -L https://istio.io/downloadIstio | sh - && sudo mv istio-*/bin/istioctl /usr/local/bin/
 ```
 
 ### ▸ Gate 0
 
 ```bash
-cd ~/adk-a2a-poc/k8s-lab
+cd ~/adk-a2a-poc/k8s-lab      # clone it first if you have not:
+                              #   git clone https://github.com/STHITAPRAJNAS/adk-a2a-poc.git ~/adk-a2a-poc
+                              #   (cd ~/adk-a2a-poc && git checkout claude/k8s-a2a-lab)
 make doctor
 ```
 
-Every line green. The GPU lines are allowed to fail — if they do, you take the
-simulated path in phase 3 and everything else is unaffected. Nothing else may
-fail.
+Every line green **except** the GPU lines, which are allowed to fail — if they
+do, you take the simulated path in phase 3 and everything else is unaffected.
+A red *networking* or *tools* line, though, means go back and finish this phase.
 
 ---
 

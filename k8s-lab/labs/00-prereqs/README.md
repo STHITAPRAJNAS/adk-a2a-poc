@@ -7,6 +7,13 @@ The full step-by-step with checks at each layer is
 [docs/windows-wsl2-gpu.md](../../docs/windows-wsl2-gpu.md) — this page is the
 why behind each choice.
 
+> **Before anything else, know the one thing that trips everyone up:** if Ubuntu
+> can't reach the internet (`apt`/`curl`/`ping` fail) even though Windows is
+> online, it is almost always a **VPN client** — NordVPN, ExpressVPN, OpenVPN —
+> blocking WSL's network *even when you never logged into it*. Quit it from the
+> Windows tray and disable launch-at-startup. Full fix:
+> [WSL networking troubleshooting](../../docs/windows-wsl2-gpu.md#wsl-networking-troubleshooting).
+
 ## On Windows
 
 | | |
