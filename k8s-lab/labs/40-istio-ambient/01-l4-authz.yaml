@@ -9,15 +9,22 @@ metadata:
   name: specialist-accepts-only-concierge
   namespace: agents
 spec:
-  targetRefs:
-    - kind: Service
-      group: ""
-      name: deployment-agent
+  # Attach to the deployment-agent WORKLOAD by label, not to the Service via
+  # targetRefs. ztunnel (ambient L4) reliably enforces workload-selected
+  # policies; a Service targetRef is silently not enforced at L4 here, so an
+  # impostor still got HTTP 200. These are the chart's selector labels — they
+  # match deployment-agent's pods and not ops-concierge's.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: adk-agent
+      app.kubernetes.io/instance: deployment-agent
   action: ALLOW
   rules:
     - from:
         - source:
             # Cryptographic identity from the workload's certificate, not an IP
-            # and not a header. Nothing in the pod can forge it.
+            # and not a header. Nothing in the pod can forge it. The concierge
+            # runs as ServiceAccount ops-concierge (serviceAccount.create=true,
+            # name defaults to the release name).
             principals:
               - cluster.local/ns/agents/sa/ops-concierge
