@@ -446,6 +446,24 @@ Namespace enrolled, workloads speaking HBONE, **and an unauthorised caller
 refused**. Note that pods are still `1/1` — no sidecar was injected, nothing
 restarted.
 
+Three things worth knowing here, learned the hard way:
+
+- **An L4 deny is a TCP reset, not an HTTP 403.** ztunnel works at L4, so a
+  refused caller sees `curl: (56) Connection reset` / http_code `000`, not a
+  clean `403`. `403` is the *L7* form you get once a waypoint is in front.
+- **Attach the L4 `AuthorizationPolicy` with a workload `selector`, not a
+  Service `targetRefs`.** ztunnel enforces selector-based policies reliably; a
+  Service `targetRef` was silently unenforced (impostor still got `200`). See
+  `01-l4-authz.yaml`.
+- **If you enrolled the namespace *after* the agents were already running** (or
+  while the CNI was still crash-looping), the existing pods miss the one-time
+  capture — `istioctl ztunnel-config workload` shows them without `HBONE`. One
+  `kubectl -n agents rollout restart deploy/...` fixes it. On a clean install
+  (mesh first, then deploy) no restart is needed.
+- **istioctl vs mesh version skew:** `downloadIstio` installs the *latest*
+  istioctl (e.g. 1.31) against a 1.30 mesh, so `istioctl ztunnel-config workload
+  --namespace <ns>` errors. Dump without the flag and filter yourself.
+
 Then add the waypoint and see what L7 buys you that L4 cannot:
 
 ```bash
