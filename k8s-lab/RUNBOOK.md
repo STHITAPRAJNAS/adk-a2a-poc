@@ -538,33 +538,44 @@ kubectl -n agents scale deploy/ops-concierge deploy/deployment-agent --replicas=
 To stop *everything* (frees the most RAM/CPU) without losing the cluster, stop the
 kind node containers — see reboot recovery below, which is the same `docker start`.
 
-## Restarting after a Windows reboot
+## Stopping and restarting (the scripts)
 
-The cluster is kind (Docker containers), not real EKS, so a reboot stops it but
-does **not** destroy it — etcd, deployments and volumes persist in the node
-containers. Bring it back in order; nothing here is a rebuild.
+The cluster is kind (Docker containers), not real EKS, so stopping it does **not**
+destroy it — etcd, deployments and volumes persist in the node containers. Two
+scripts wrap the whole dance:
 
-```powershell
-# 1. Windows: start WSL
-wsl
-```
 ```bash
-# 2. WSL: make sure the Docker daemon is up (docker-ce runs under systemd)
-sudo service docker start 2>/dev/null || sudo systemctl start docker
-docker info >/dev/null && echo "docker up"
+./scripts/stop-cluster.sh      # halt the cluster (frees GPU VRAM + RAM), keep it on disk
+./scripts/start-cluster.sh     # bring it back after a reboot or a stop
+```
 
-# 3. start the kind node containers (they were stopped, not removed)
-docker ps -a --filter "name=a2a-lab" --format '{{.Names}}\t{{.Status}}'
-docker start $(docker ps -a --filter "name=a2a-lab" -q)
+`start-cluster.sh` runs in order: start the Docker daemon → `docker start` the kind
+node containers → set `KUBECONFIG` → wait for nodes `Ready`. `stop-cluster.sh`
+just `docker stop`s the node containers (that alone unloads the model from VRAM
+and frees the RAM). Neither destroys anything.
 
-# 4. point this shell at the cluster and wait for the API to answer
+**One catch:** a script runs in a subshell, so `start-cluster.sh` cannot set
+`KUBECONFIG` in *your* shell — it prints the line. Put it in `~/.bashrc` once so
+every shell has it:
+
+```bash
+echo 'export KUBECONFIG=~/adk-a2a-poc/k8s-lab/labs/10-cluster/kubeconfig' >> ~/.bashrc
+```
+
+<details><summary>What <code>start-cluster.sh</code> does, by hand</summary>
+
+```bash
+sudo service docker start 2>/dev/null || sudo systemctl start docker  # docker-ce under systemd
+docker start $(docker ps -a --filter "name=a2a-lab" -q)               # nodes = containers
 export KUBECONFIG=~/adk-a2a-poc/k8s-lab/labs/10-cluster/kubeconfig
 kubectl wait --for=condition=Ready nodes --all --timeout=180s
-kubectl get pods -A          # workloads restart themselves once nodes are Ready
+kubectl get nodes
 ```
+</details>
 
-Then, only if you scaled things to zero before shutting down, scale them back
-(step above). Two reboot-specific gotchas:
+After a start, only if you scaled the GPU workloads to zero, scale them back
+(`kubectl -n llm scale deploy/ollama deploy/open-webui --replicas=1`). Two
+reboot-specific gotchas:
 
 - **Ollama models may need re-pulling.** They live in an `emptyDir`; a pod that is
   *recreated* (not just restarted) loses them. If `ollama list` is empty:
