@@ -71,6 +71,18 @@ else
 fi
 
 echo
+echo "── kernel limits (WSL2 shares one kernel across all kind nodes)"
+# Istio's CNI agent crash-loops with "couldn't initialize inotify: too many
+# open files" when these are at their low defaults. Four kind nodes + Istio
+# watchers blow past ~128 instances. Bites at lab 40, so check it up front.
+INST=$(sysctl -n fs.inotify.max_user_instances 2>/dev/null || echo 0)
+WATCH=$(sysctl -n fs.inotify.max_user_watches 2>/dev/null || echo 0)
+if [ "${INST:-0}" -ge 1024 ]; then good "fs.inotify.max_user_instances=${INST}"
+else bad "fs.inotify.max_user_instances=${INST} — too low for Istio; sudo sysctl -w fs.inotify.max_user_instances=8192 (persist in /etc/sysctl.d/99-inotify.conf)"; fi
+if [ "${WATCH:-0}" -ge 65536 ]; then good "fs.inotify.max_user_watches=${WATCH}"
+else bad "fs.inotify.max_user_watches=${WATCH} — too low; sudo sysctl -w fs.inotify.max_user_watches=524288 (persist in /etc/sysctl.d/99-inotify.conf)"; fi
+
+echo
 echo "── ports"
 for p in 8080 8081 8443; do
   if ss -ltn 2>/dev/null | grep -q ":${p} "; then warn "port $p in use"; else good "port $p free"; fi

@@ -194,6 +194,22 @@ sudo apt update && sudo apt install -y terraform
 cd ~ && curl -L https://istio.io/downloadIstio | sh - && sudo mv istio-*/bin/istioctl /usr/local/bin/
 ```
 
+### 0g — raise inotify limits (or Istio crash-loops at Phase 4)
+
+WSL2 runs **one shared kernel** for the distro and every kind node container.
+Its default `fs.inotify` limits are low (~128 instances); four kind nodes plus
+Istio's file watchers blow past that, and the Istio CNI agent crash-loops with
+`couldn't initialize inotify: too many open files`. Raise it once, on the WSL
+host — every node inherits it:
+
+```bash
+sudo sysctl -w fs.inotify.max_user_instances=8192
+sudo sysctl -w fs.inotify.max_user_watches=524288
+# persist across reboots (systemd applies /etc/sysctl.d at boot):
+printf 'fs.inotify.max_user_instances = 8192\nfs.inotify.max_user_watches = 524288\n' \
+  | sudo tee /etc/sysctl.d/99-inotify.conf
+```
+
 ### ▸ Gate 0
 
 ```bash
@@ -413,6 +429,12 @@ kubectl -n agents  port-forward svc/deployment-agent 8001:8001 # /dev-ui?app=dep
 kubectl apply -f ./labs/40-istio-ambient/enroll.yaml
 kubectl apply -f ./labs/40-istio-ambient/01-l4-authz.yaml
 ```
+
+If `install.sh` dies on the `istio-cni` step with `context deadline exceeded`
+and the CNI pods are `CrashLoopBackOff` (`couldn't initialize inotify: too many
+open files`), you skipped **step 0g** — raise the inotify limits, then
+`kubectl -n istio-system rollout restart ds/istio-cni-node` and re-run
+`install.sh` (it is idempotent).
 
 ### ▸ Gate 4
 
