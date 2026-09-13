@@ -10,7 +10,10 @@ M=$(kubectl get ns $NS -o jsonpath='{.metadata.labels.istio\.io/dataplane-mode}'
 kubectl -n istio-system get ds ztunnel >/dev/null 2>&1 && ok "ztunnel DaemonSet present" || no "ztunnel missing"
 
 if command -v istioctl >/dev/null 2>&1; then
-  istioctl ztunnel-config workload --namespace $NS 2>/dev/null | grep -q HBONE \
+  # Dump all workloads and filter by the NAMESPACE column ($1). The older
+  # `--namespace` flag was rejected by newer istioctl (client 1.31 vs mesh
+  # 1.30), so do the filtering here — robust across the version skew.
+  istioctl ztunnel-config workload 2>/dev/null | awk -v ns="$NS" '$1==ns' | grep -q HBONE \
     && ok "workloads speaking HBONE (mTLS)" || no "no HBONE workloads found"
 fi
 
