@@ -44,6 +44,16 @@ spec:
   provider:
     type: Kubernetes
     kubernetes:
+      # Put the ingress proxy INTO the ambient mesh. The backends it fronts
+      # (ops-concierge) are ambient-captured and only accept HBONE (mTLS); a
+      # plaintext hop from outside the mesh is held open by ztunnel and hangs.
+      # Enrolling the proxy makes its backend hop HBONE, which ztunnel accepts.
+      # This is the "gateway joins the mesh" step — the doorway still faces
+      # outward, but it now speaks the mesh's language on the inside.
+      envoyDeployment:
+        pod:
+          labels:
+            istio.io/dataplane-mode: ambient
       envoyService:
         type: NodePort
         patch:
