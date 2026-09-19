@@ -44,15 +44,6 @@ spec:
   provider:
     type: Kubernetes
     kubernetes:
-      # Keep the ingress proxy OUT of the ambient mesh. It lives in the
-      # ambient-enrolled `agents` namespace, so without this label ztunnel
-      # captures it and resets inbound traffic — an ingress gateway must not be
-      # in the dataplane it fronts. This is the north-south/east-west boundary:
-      # the gateway is the doorway, not a peer inside the mesh.
-      envoyDeployment:
-        pod:
-          labels:
-            istio.io/dataplane-mode: none
       envoyService:
         type: NodePort
         patch:
@@ -60,7 +51,12 @@ spec:
           value:
             spec:
               ports:
-                - name: http-80
+                # A StrategicMerge on a Service's ports list keys on `port`
+                # (the patchMergeKey), NOT on `name`. Omit it and the merge is
+                # rejected with "does not contain declared merge key: port",
+                # the Envoy Service is never finalized, the proxy gets no
+                # endpoints, xDS times out on ClusterLoadAssignment, and every
+                # request is reset. The Gateway has only an http:80 listener,
+                # so that is the one port to pin to the host-mapped nodePort.
+                - port: 80
                   nodePort: 30080
-                - name: https-443
-                  nodePort: 30443
