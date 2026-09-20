@@ -50,6 +50,13 @@ spec:
           type: StrategicMerge
           value:
             spec:
+              # kind maps host :8080 -> the CONTROL-PLANE node's :30080, but the
+              # Envoy proxy pod runs on a worker. Envoy Gateway defaults the
+              # Service to externalTrafficPolicy: Local, which only routes a
+              # NodePort to a proxy pod ON THE SAME NODE — so traffic entering on
+              # the control-plane node (which has no proxy pod) is dropped/reset.
+              # Cluster policy lets any node forward to the proxy wherever it runs.
+              externalTrafficPolicy: Cluster
               ports:
                 # A StrategicMerge on a Service's ports list keys on `port`
                 # (the patchMergeKey), NOT on `name`. Omit it and the merge is
