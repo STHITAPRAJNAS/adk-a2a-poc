@@ -95,6 +95,11 @@ spec:
             - "--server"
             - "--addr=:8181"
             - "--config-file=/config/opa-conf.yaml"
+            # A ConfigMap volume also exposes hidden ..data / ..<timestamp>
+            # symlink dirs; without this OPA loads each policy 3x and refuses to
+            # start with "multiple default rules". Ignore dotfiles/dirs so only
+            # the real envoy.rego + tools.rego are loaded once.
+            - "--ignore=.*"
             - "/policies"
           ports:
             - { name: grpc, containerPort: 9191 }
