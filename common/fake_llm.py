@@ -68,6 +68,19 @@ class Conversation:
                     return True
         return False
 
+    def latest_policy_denial(self) -> dict | None:
+        """The newest tool response the OPA guard blocked, if any.
+
+        The guard (common.opa_guard) returns ``{"error": "denied_by_policy", ...}``
+        in place of running a tool. A real model would read that and report it;
+        the scripted model does the same so the demo output is clean.
+        """
+        for fr in reversed(self.function_responses()):
+            resp = fr.response if isinstance(fr.response, dict) else {}
+            if resp.get("error") == "denied_by_policy":
+                return {"tool": fr.name, **resp}
+        return None
+
 
 def _text(message: str) -> LlmResponse:
     return LlmResponse(
@@ -119,6 +132,9 @@ _RELEASE_WORDS = (
 
 
 def _orchestrator_decider(conversation: Conversation) -> LlmResponse:
+    denial = conversation.latest_policy_denial()
+    if denial:
+        return _text(f"Blocked by policy: cannot run `{denial['tool']}`. {denial.get('message', '')}")
     text = conversation.last_user_text().lower()
     if any(word in text for word in _RELEASE_WORDS):
         return _call("transfer_to_agent", agent_name="deployment_agent")
@@ -160,6 +176,9 @@ def _parse_release_request(text: str) -> tuple[str, str, str]:
 
 
 def _deployment_decider(conversation: Conversation) -> LlmResponse:
+    denial = conversation.latest_policy_denial()
+    if denial:
+        return _text(f"Blocked by policy: cannot run `{denial['tool']}`. {denial.get('message', '')}")
     request_text = conversation.last_user_text()
     service, version, environment = _parse_release_request(request_text)
 

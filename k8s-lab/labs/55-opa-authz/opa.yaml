@@ -47,22 +47,36 @@ data:
 
     default allow := false
 
-    # ops_concierge may ONLY ever delegate to deployment_agent — nothing else.
+    # A call is allowed if a base rule permits it AND the service is not frozen.
     allow if {
+      base_allow
+      not frozen
+    }
+
+    # ── Change freeze ────────────────────────────────────────────────────────
+    # No tool may touch a frozen service, whoever asks. This blocks at the FIRST
+    # tool (check_release_readiness), so it's the easy one to demo — no approval
+    # dance needed. Try: "deploy billing-worker 3.1.0 to production".
+    frozen_services := {"billing-worker"}
+    frozen if input.args.service in frozen_services
+
+    # ── Base permissions ─────────────────────────────────────────────────────
+    # ops_concierge may ONLY ever delegate to deployment_agent — nothing else.
+    base_allow if {
       input.agent == "ops_concierge"
       input.tool == "transfer_to_agent"
       input.args.agent_name == "deployment_agent"
     }
 
     # deployment_agent may run its read-only / approval tools freely.
-    allow if {
+    base_allow if {
       input.agent == "deployment_agent"
       input.tool in {"check_release_readiness", "run_compliance_scan", "request_change_approval"}
     }
 
     # ...but it may only START a deployment when the target is NOT production.
     # Production deploys are blocked at the tool boundary by policy, full stop.
-    allow if {
+    base_allow if {
       input.agent == "deployment_agent"
       input.tool == "start_deployment"
       input.args.environment != "production"

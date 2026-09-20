@@ -38,4 +38,7 @@ echo "$D" | grep -q '"result":true' && ok "start_deployment→staging ALLOWED by
 D=$(probe '{"input":{"agent":"ops_concierge","tool":"transfer_to_agent","args":{"agent_name":"deployment_agent"}}}')
 echo "$D" | grep -q '"result":true' && ok "concierge→transfer(deployment_agent) ALLOWED" || no "concierge transfer check: ${D:-<empty>}"
 
+D=$(probe '{"input":{"agent":"deployment_agent","tool":"check_release_readiness","args":{"service":"billing-worker","environment":"production"}}}')
+echo "$D" | grep -q '"result":false' && ok "frozen service billing-worker DENIED at first tool" || no "freeze check: ${D:-<empty>}"
+
 exit $FAIL

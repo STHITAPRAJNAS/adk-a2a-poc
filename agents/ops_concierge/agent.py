@@ -27,6 +27,7 @@ from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.apps import App, ResumabilityConfig
 
 from common.config import get_settings, resolve_model
+from common.opa_guard import make_opa_tool_guard
 
 _INSTRUCTION = """\
 You are the Ops Concierge. You talk to platform engineers about releases.
@@ -127,6 +128,9 @@ def build_agent() -> LlmAgent:
         description="Front door for platform engineers asking about releases.",
         instruction=_INSTRUCTION,
         sub_agents=[build_remote_deployment_agent()],
+        # When OPA_URL is set, every tool call (including transfer_to_agent) is
+        # checked against OPA before it runs. None when unset → no-op.
+        before_tool_callback=make_opa_tool_guard("ops_concierge"),
     )
 
 

@@ -61,11 +61,44 @@ kubectl -n agents run q --rm -i --restart=Never --image=curlimages/curl -- \
 ## Stage 2 — enforce the tools policy inside the agents
 
 Stage 1 only *deploys* the tools policy; Stage 2 makes the agents obey it. Each
-agent gets a `before_tool_callback` that POSTs `{agent, tool, args}` to
-`http://opa:8181/v1/data/tools/allow` before every tool call and **blocks the
-call** if OPA says no — so OPA, not the LLM, has the final say on what runs.
-Enabled by an `OPA_URL` env var (off by default, like the Ollama path). See the
-runbook's Phase 5.6.
+agent installs a `before_tool_callback` (`common/opa_guard.py`) that POSTs
+`{agent, tool, args}` to `http://opa:8181/v1/data/tools/allow` before every tool
+runs and **skips the call** if OPA says no — so OPA, not the LLM, decides what
+executes. It's opt-in via `OPA_URL` (off by default, like the Ollama path), so it
+needs an image rebuild and the env set on the agents:
+
+```bash
+# from k8s-lab/ — rebuild the agent image with the guard code, reload into kind
+./images/build.sh
+kubectl -n agents set env deploy/ops-concierge deploy/deployment-agent OPA_URL=http://opa:8181
+kubectl -n agents rollout status deploy/ops-concierge
+kubectl -n agents rollout status deploy/deployment-agent
+```
+
+Then drive it through the gateway (the `x-change-ticket` header satisfies the
+Stage-1 ingress policy):
+
+```bash
+say() { curl -sN -H 'content-type: application/json' -H 'accept: text/event-stream' \
+  -H 'x-change-ticket: CHG-0001' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"message/stream\",\"params\":{\"message\":{\"messageId\":\"m1\",\"kind\":\"message\",\"role\":\"user\",\"parts\":[{\"kind\":\"text\",\"text\":\"$1\"}]}}}" \
+  http://a2a.localhost:8080/a2a/ops_concierge; echo; }
+
+say "deploy checkout-api 2.14.0 to staging"      # ALLOWED — start_deployment runs, job created
+say "deploy billing-worker 3.1.0 to production"  # DENIED at the first tool (frozen service)
+```
+
+- **staging** → every tool is permitted; `start_deployment` runs and the task
+  parks on the running job. (`start_deployment→production` would be blocked by
+  the env rule — but that only triggers after the approval gate.)
+- **billing-worker** → OPA's change-freeze denies `check_release_readiness`
+  immediately; the stream ends with **"Blocked by policy: cannot run
+  `check_release_readiness`"** and no scan/approval/job ever happens. Watch it in
+  the agent log too: `kubectl -n agents logs deploy/deployment-agent | grep "OPA guard"`.
+
+Change a rule in `tools.rego` (e.g. add a service to `frozen_services`), re-apply
+`opa.yaml`, restart OPA, and the agents' behaviour changes with **no code change** —
+that's the point of policy-as-code.
 
 ## Notes
 

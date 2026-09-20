@@ -17,6 +17,7 @@ from google.adk.agents import LlmAgent
 from google.adk.apps import App, ResumabilityConfig
 
 from common.config import get_settings, resolve_model
+from common.opa_guard import make_opa_tool_guard
 
 from . import tools
 
@@ -75,6 +76,10 @@ def build_agent() -> LlmAgent:
         ),
         instruction=_INSTRUCTION,
         tools=tools.ALL_TOOLS,
+        # OPA decides, per call, whether each tool (check_release_readiness,
+        # run_compliance_scan, request_change_approval, start_deployment) may run
+        # with the given args. None when OPA_URL is unset → no-op.
+        before_tool_callback=make_opa_tool_guard("deployment_agent"),
     )
 
 
