@@ -31,7 +31,7 @@ fi
 if [ -n "${BASH_VERSION:-}" ]; then good "bash ${BASH_VERSION%%(*}"; fi
 
 echo
-echo "── tools (install with Homebrew: brew install kind kubectl helm terraform jq)"
+echo "── tools (brew install kind kubernetes-cli helm jq; terraform via hashicorp/tap)"
 for t in kind kubectl helm terraform docker; do
   if command -v "$t" >/dev/null 2>&1; then good "$t $($t version --short 2>/dev/null | head -1 || echo present)"
   else bad "$t not installed — brew install $t"; fi
@@ -39,6 +39,13 @@ done
 for t in istioctl jq; do
   command -v "$t" >/dev/null 2>&1 && good "$t" || warn "$t missing (needed from lab 40 / verify scripts) — brew install $t"
 done
+# kubectl version skew: the cluster is v1.36 (see versions.env); a client more
+# than one minor behind mis-applies newer CRDs (Gateway API, Istio) with
+# "unknown field" errors. Warn if the client minor is old.
+KMINOR=$(kubectl version --client -o json 2>/dev/null | jq -r '.clientVersion.minor' 2>/dev/null | tr -dc '0-9')
+if [ -n "$KMINOR" ] && [ "$KMINOR" -lt 30 ] 2>/dev/null; then
+  bad "kubectl client is v1.${KMINOR} but the cluster is v1.36 — too old; brew upgrade kubernetes-cli (and check 'which -a kubectl' isn't a Docker Desktop copy shadowing brew)"
+fi
 
 echo
 echo "── container runtime (Docker Desktop)"
