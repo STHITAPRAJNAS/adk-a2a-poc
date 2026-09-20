@@ -56,6 +56,19 @@ brew install hashicorp/tap/terraform
 brew install k9s          # optional but you'll want it by lab 40
 ```
 
+> **If `brew install` fails with "Your Command Line Tools are too outdated":**
+> your Xcode CLT are stale (this blocks every brew install, not just Terraform).
+> Fix it properly with `sudo rm -rf /Library/Developer/CommandLineTools && sudo
+> xcode-select --install`, then re-run the brew command. To unblock *just*
+> Terraform without touching the CLT, grab the precompiled binary directly (no
+> compiler needed):
+> ```bash
+> cd /tmp
+> curl -fLO https://releases.hashicorp.com/terraform/1.16.3/terraform_1.16.3_darwin_arm64.zip
+> unzip terraform_1.16.3_darwin_arm64.zip && sudo mv terraform /usr/local/bin/
+> terraform -version
+> ```
+
 Check:
 
 ```bash
