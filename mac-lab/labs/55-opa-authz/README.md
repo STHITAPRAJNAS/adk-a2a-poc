@@ -102,8 +102,11 @@ that's the point of policy-as-code.
 
 ## Notes
 
-- **Pin the image.** `opa.yaml` uses `openpolicyagent/opa:latest-envoy`; pin a
-  real version (`:<x.y.z>-envoy`) for a repeatable build.
+- **Image arch (Apple Silicon).** The plain `openpolicyagent/opa:*-envoy` tags
+  are **amd64-only** and fail on arm64 with `no match for platform in manifest`.
+  This lab pins `openpolicyagent/opa:1.20.2-envoy-static` — the `-envoy-static`
+  variant is multi-arch (arm64 + amd64) and otherwise identical. Bump the pin to
+  a newer `*-envoy-static` when you want, but keep the `-static` suffix on a Mac.
 - **Fail closed.** `securitypolicy.yaml` sets `failOpen: false` — if OPA is down,
   requests are denied, not waved through. That's the safe default for a policy gate.
 - OPA is kept **out of the ambient mesh** (`istio.io/dataplane-mode: none`) so both

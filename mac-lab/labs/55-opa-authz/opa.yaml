@@ -103,7 +103,11 @@ spec:
     spec:
       containers:
         - name: opa
-          image: openpolicyagent/opa:latest-envoy   # pin a real version for repeatability
+          # NOTE (Apple Silicon): the plain `-envoy` tag is amd64-ONLY and fails
+          # on arm64 with "no match for platform in manifest". The `-envoy-static`
+          # variant is multi-arch (arm64 + amd64) and otherwise identical. Pinned
+          # to a real version for repeatability.
+          image: openpolicyagent/opa:1.20.2-envoy-static
           args:
             - "run"
             - "--server"
