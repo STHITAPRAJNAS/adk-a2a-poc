@@ -1,0 +1,74 @@
+# Three pods that exercise the three scheduling mechanisms on a CPU node pool.
+# The Windows lab does this with nvidia.com/gpu on a real GPU node; here the
+# resource is a FAKE extended resource (lab.local/accelerator) advertised on a
+# node you taint by hand — the scheduling behaviour and the `describe` output are
+# identical, only the workload can't actually compute.
+#
+# Prereqs (see the README): pick one general worker, then
+#   kubectl label  node <n> lab.local/pool=accel
+#   kubectl taint  node <n> lab.local/accel=present:NoSchedule
+#   ../../scripts/advertise-resource.sh <n> 2
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: scheduling-lab
+---
+# GOOD — selector + toleration + a resource request that fits. Should Run.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: accel-good
+  namespace: scheduling-lab
+spec:
+  nodeSelector:
+    lab.local/pool: accel
+  tolerations:
+    - key: lab.local/accel
+      operator: Equal
+      value: present
+      effect: NoSchedule
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      resources:
+        limits:
+          lab.local/accelerator: "1"
+---
+# NO TOLERATION — targets the pool but is repelled by the taint. Should Pend.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: accel-no-toleration
+  namespace: scheduling-lab
+spec:
+  nodeSelector:
+    lab.local/pool: accel
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      resources:
+        limits:
+          lab.local/accelerator: "1"
+---
+# TOO GREEDY — tolerates the taint and matches the selector, but asks for 8 of a
+# resource there are 2 of. Should Pend on Insufficient.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: accel-too-greedy
+  namespace: scheduling-lab
+spec:
+  nodeSelector:
+    lab.local/pool: accel
+  tolerations:
+    - key: lab.local/accel
+      operator: Equal
+      value: present
+      effect: NoSchedule
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      resources:
+        limits:
+          lab.local/accelerator: "8"

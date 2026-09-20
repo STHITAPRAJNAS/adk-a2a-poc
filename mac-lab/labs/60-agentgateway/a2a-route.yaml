@@ -1,0 +1,29 @@
+# Routing to the concierge's A2A endpoint. Structurally identical to lab 50's
+# HTTPRoute — which is the point: Gateway API is the same API whichever
+# implementation is behind it.
+#
+# What differs is what the data plane does once traffic matches: agentgateway
+# parses the A2A payload, so its policy and telemetry are expressed in A2A terms
+# rather than in paths.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: concierge-a2a
+  namespace: agents
+spec:
+  parentRefs:
+    - name: a2a-ingress
+  hostnames:
+    - "a2a.localhost"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /a2a/ops_concierge
+      backendRefs:
+        - name: ops-concierge
+          port: 8000
+      timeouts:
+        # Same lesson as lab 50: A2A streams outlive default proxy timeouts.
+        request: "0s"
+        backendRequest: "0s"

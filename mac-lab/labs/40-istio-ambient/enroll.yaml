@@ -1,0 +1,8 @@
+# Joining the mesh is one label on the namespace. No pod restart, no sidecar, no
+# change to any Deployment — which is the ambient pitch in a single line.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agents
+  labels:
+    istio.io/dataplane-mode: ambient

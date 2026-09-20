@@ -1,0 +1,29 @@
+{{ .Release.Name }} deployed to namespace {{ .Release.Namespace }}.
+
+In-cluster address (what other agents should use):
+  {{ include "adk-agent.clusterURL" . }}
+
+A2A endpoints:
+  RPC   {{ include "adk-agent.clusterURL" . }}/a2a/{{ .Values.appName }}
+  Card  {{ include "adk-agent.clusterURL" . }}/a2a/{{ .Values.appName }}/.well-known/agent-card.json
+
+Check it is up:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "adk-agent.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "adk-agent.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl -s localhost:{{ .Values.service.port }}/a2a/{{ .Values.appName }}/.well-known/agent-card.json | jq .
+
+{{- if not .Values.servedAgentCard }}
+
+NOTE: this agent is publishing the card baked into the image, which names
+127.0.0.1. That is fine while nothing outside the pod reads it. Set
+servedAgentCard before exposing this agent through a gateway (lab 60), or
+external callers will be told to send their RPC to their own loopback.
+{{- end }}
+{{- if .Values.peerAgentCards }}
+
+Peer cards mounted at /etc/a2a:
+{{- range $name, $card := .Values.peerAgentCards }}
+  /etc/a2a/{{ $name }}.json
+{{- end }}
+Point the consuming env var at the FILE PATH, not an http URL — see values.yaml.
+{{- end }}

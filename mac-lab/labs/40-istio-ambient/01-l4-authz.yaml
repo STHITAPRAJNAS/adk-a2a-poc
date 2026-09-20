@@ -1,0 +1,30 @@
+# L4 authorisation, enforced by ztunnel. No waypoint needed.
+#
+# ztunnel sees TCP and identities, not HTTP. So it can answer "may this
+# workload identity open a connection to that one" and nothing finer. That is
+# already most of what you want, and it costs no proxy hop.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: specialist-accepts-only-concierge
+  namespace: agents
+spec:
+  # Attach to the deployment-agent WORKLOAD by label, not to the Service via
+  # targetRefs. ztunnel (ambient L4) reliably enforces workload-selected
+  # policies; a Service targetRef is silently not enforced at L4 here, so an
+  # impostor still got HTTP 200. These are the chart's selector labels — they
+  # match deployment-agent's pods and not ops-concierge's.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: adk-agent
+      app.kubernetes.io/instance: deployment-agent
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            # Cryptographic identity from the workload's certificate, not an IP
+            # and not a header. Nothing in the pod can forge it. The concierge
+            # runs as ServiceAccount ops-concierge (serviceAccount.create=true,
+            # name defaults to the release name).
+            principals:
+              - cluster.local/ns/agents/sa/ops-concierge

@@ -1,0 +1,21 @@
+{{- if or .Values.servedAgentCard .Values.peerAgentCards }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "adk-agent.fullname" . }}-cards
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "adk-agent.labels" . | nindent 4 }}
+data:
+  {{- if .Values.servedAgentCard }}
+  # Mounted over the card baked into the image, so this agent publishes a URL
+  # callers can actually reach.
+  served-agent-card.json: |
+    {{- toPrettyJson .Values.servedAgentCard | nindent 4 }}
+  {{- end }}
+  {{- range $name, $card := .Values.peerAgentCards }}
+  # Consumed by this agent from /etc/a2a/{{ $name }}.json
+  {{ $name }}.json: |
+    {{- toPrettyJson $card | nindent 4 }}
+  {{- end }}
+{{- end }}

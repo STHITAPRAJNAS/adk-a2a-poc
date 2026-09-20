@@ -1,0 +1,37 @@
+# L7 authorisation, enforced by the waypoint. Only works once 02-waypoint.yaml
+# is deployed and the namespace is bound to it.
+#
+# Now the mesh can see method and path, so the policy can say *what* the
+# concierge may do rather than only that it may connect.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: specialist-a2a-only
+  namespace: agents
+spec:
+  targetRefs:
+    - kind: Service
+      group: ""
+      name: deployment-agent
+  action: ALLOW
+  rules:
+    # The concierge may speak A2A and read the card. Nothing else.
+    - from:
+        - source:
+            principals: ["cluster.local/ns/agents/sa/ops-concierge"]
+      to:
+        - operation:
+            methods: ["POST"]
+            paths: ["/a2a/deployment_agent"]
+    - from:
+        - source:
+            principals: ["cluster.local/ns/agents/sa/ops-concierge"]
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/a2a/deployment_agent/.well-known/*"]
+    # Health checks come from the kubelet, which has no mesh identity.
+    - to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/health"]

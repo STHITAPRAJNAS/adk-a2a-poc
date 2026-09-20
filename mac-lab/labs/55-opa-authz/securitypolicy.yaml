@@ -1,0 +1,22 @@
+# Wire OPA into the Envoy Gateway as an external authorization service.
+#
+# Attaching to the Gateway applies it to every route the gateway serves. Envoy
+# calls OPA's ext_authz gRPC (:9191) for each request; OPA returns allow/deny
+# from package envoy.authz. Deny → Envoy returns 403 and the agent never sees it.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: opa-ext-authz
+  namespace: agents
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: north-south
+  extAuth:
+    # Fail closed: if OPA is unreachable, deny rather than silently allow.
+    failOpen: false
+    grpc:
+      backendRefs:
+        - name: opa
+          port: 9191

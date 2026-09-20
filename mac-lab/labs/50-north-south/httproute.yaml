@@ -1,0 +1,27 @@
+# Routing is a separate resource from the Gateway, owned by whoever owns the
+# app. The gateway admin never edits this file.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: concierge
+  namespace: agents
+spec:
+  parentRefs:
+    - name: north-south
+  hostnames:
+    - "a2a.localhost"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /a2a/ops_concierge
+      backendRefs:
+        - name: ops-concierge
+          port: 8000
+      timeouts:
+        # The default is 15s and A2A will blow straight through it: a compliance
+        # scan alone runs 8s, and a resubscribed stream is unbounded. This is
+        # the timeout people discover in production, when a task that worked in
+        # testing hangs up mid-negotiation.
+        request: "0s"        # no request timeout
+        backendRequest: "0s"

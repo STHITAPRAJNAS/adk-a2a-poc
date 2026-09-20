@@ -1,0 +1,69 @@
+# ---------------------------------------------------------------------------
+# deployment_agent — the specialist. Pure A2A server: it answers, it never
+# initiates.
+#
+#   helm install deployment-agent ./charts/adk-agent \
+#     -n agents --create-namespace -f ./charts/adk-agent/values-specialist.yaml
+# ---------------------------------------------------------------------------
+
+appName: deployment_agent
+agentPackageDir: remote_agents
+serverModule: servers.remote_agent_server
+
+containerPort: 8001
+service:
+  port: 8001
+
+env:
+  REMOTE_AGENT_HOST: "0.0.0.0"
+  REMOTE_AGENT_PORT: "8001"
+  POC_FAKE_LLM: "1"
+  ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS: "1"
+  COMPLIANCE_SCAN_SECONDS: "8"
+  DEPLOYMENT_JOB_SECONDS: "20"
+
+# Republish the card with the in-cluster service URL instead of the image's
+# 127.0.0.1. Strictly speaking the concierge does not read this — it reads a
+# mounted file (see values-concierge.yaml) — but leaving a card that points at
+# loopback lying around is how you lose an afternoon later, and anything that
+# curls this endpoint deserves the truth.
+servedAgentCard:
+  name: deployment_agent
+  description: >-
+    Release operations specialist. Checks release readiness, runs compliance
+    scans, raises human change-approval tickets and drives deployment jobs.
+    Pauses for a human decision before any production release.
+  url: http://deployment-agent.agents.svc.cluster.local:8001/a2a/deployment_agent
+  version: "1.0.0"
+  protocolVersion: "0.3.0"
+  preferredTransport: JSONRPC
+  capabilities:
+    streaming: true
+    pushNotifications: false
+    stateTransitionHistory: true
+  defaultInputModes: ["text/plain"]
+  defaultOutputModes: ["text/plain"]
+  supportsAuthenticatedExtendedCard: false
+  skills:
+    - id: release_readiness
+      name: Release readiness check
+      description: >-
+        Reports whether a service version can be released into an environment:
+        open incidents, tier, owning team, risk, and whether a human approval is
+        required.
+      tags: [release, readiness, preflight]
+      examples: ["Is checkout-api 2.14.0 ready for production?"]
+    - id: human_change_approval
+      name: Human change approval
+      description: >-
+        Opens a change-approval ticket and pauses the task in input-required
+        until a human approves or rejects it.
+      tags: [hitl, approval, input-required]
+      examples: ["Deploy checkout-api 2.14.0 to production"]
+    - id: deployment_execution
+      name: Deployment execution
+      description: >-
+        Runs a canary pipeline that outlives a single request, returning a job
+        handle and parking the task until the terminal result arrives.
+      tags: [deploy, long-running, async]
+      examples: ["Roll out checkout-api 2.14.0"]

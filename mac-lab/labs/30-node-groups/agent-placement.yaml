@@ -1,0 +1,33 @@
+# Helm values pinning the agents to the general node group and spreading them
+# across the fake AZs.
+#
+#   helm upgrade ops-concierge ../../charts/adk-agent -n agents \
+#     -f ../../charts/adk-agent/values-concierge.yaml -f ./agent-placement.yaml
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            # "not the GPU pool" rather than "the general pool", so a node group
+            # added next month is eligible without anyone editing this file.
+            - key: nvidia.com/gpu.present
+              operator: DoesNotExist
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: eks.amazonaws.com/nodegroup
+              operator: In
+              values: ["general"]
+
+# Spread across zones. This is only meaningful because lab 10 gave the nodes
+# real zone labels with fake values — on a single-zone cluster it is a no-op you
+# would never notice was doing nothing.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: adk-agent
