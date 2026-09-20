@@ -515,16 +515,22 @@ Two things this phase taught the hard way:
   finalizes, the proxy gets no endpoints, and every request **hangs**.
   `gateway.yaml` pins `port: 80` + `nodePort: 30080` correctly — that was the real
   bug behind a Gateway stuck `Programmed=False`.
-- **Ingress into an *ambient* backend is a genuine integration seam.** A plain
-  out-of-mesh gateway sending plaintext to an ambient (ztunnel-captured) backend
-  can hang; enrolling the gateway in the mesh isn't a clean fix either. The
-  production-correct patterns are to use **Istio's own gateway** for ambient
-  ingress, or front the backend with a **waypoint**. Also: on a kind/WSL cluster
-  that has survived many reboots/restarts, the plain cross-node pod data-path can
-  simply wedge — if the card hangs but the agents work when hit directly
-  (`kubectl -n agents port-forward deploy/ops-concierge 18000:8000`), **rebuild
-  the cluster** (it resets CNI) before chasing config. A fresh cluster is the
-  reliable way to get this green.
+- **The Envoy Service needs `externalTrafficPolicy: Cluster` on kind.** This was
+  *the* ingress bug: kind maps host `:8080` to the **control-plane** node's
+  `:30080`, but the Envoy proxy pod runs on a **worker**. Envoy Gateway defaults
+  the Service to `externalTrafficPolicy: Local`, which routes a NodePort only to a
+  proxy pod **on the node the traffic entered** — so requests arriving on the
+  control-plane node (which has no proxy) are silently dropped/reset. Symptom:
+  `curl` connects to `:8080` then hangs or resets, while the agents work perfectly
+  when hit directly. `gateway.yaml` now pins `externalTrafficPolicy: Cluster` in
+  the Service patch, so any node forwards to the proxy wherever it runs. If you
+  ever see an ingress that connects-then-hangs on kind, check the Service's
+  traffic policy **first**.
+- **Ambient + third-party ingress** is a real topic, but it was *not* the cause
+  here (traffic never reached Envoy). For production ambient ingress the clean
+  patterns are Istio's own gateway or a waypoint in front of the backend; for
+  this lab, an out-of-mesh Envoy Gateway reaching the ambient backend works once
+  the traffic policy above lets requests actually arrive.
 
 ---
 
