@@ -21,32 +21,32 @@ lab 70. A2A routing sits on its roadmap rather than in v1.0. The names blur
 together and people reach for the wrong one constantly. See
 [the decision guide](../../docs/gateway-decision-guide.md).
 
-## Install
+## Install (standalone — the reliable path on kind)
+
+agentgateway's Kubernetes/Gateway-API mode is delivered through kgateway and is
+still churning; the simplest, most transparent way to run it on kind is
+**standalone**: one pod, one flat config file, one NodePort. The config is a
+single file you can read — and the line that matters is `a2a: {}`, which tells
+the proxy to *parse the A2A protocol* on that route.
 
 ```bash
 export KUBECONFIG=$PWD/../10-cluster/kubeconfig
-source ../../versions.env
-
-helm upgrade --install agentgateway \
-  oci://ghcr.io/agentgateway/charts/agentgateway \
-  --version "${AGENTGATEWAY_VERSION#v}" \
-  -n agentgateway-system --create-namespace --wait
+kubectl apply -f standalone.yaml
+kubectl -n agentgateway-system rollout status deploy/agentgateway
 ```
 
-> **Unverified.** The chart coordinates above are the documented ones as of
-> 2026-09-11 but were not installed during authoring. If the OCI reference has
-> moved, take the current one from
-> <https://agentgateway.dev/docs/> and **fix this file** — a stale install
-> command is the most likely thing in this lab to be wrong.
+`standalone.yaml` is a ConfigMap (the agentgateway config), a Deployment (image
+`ghcr.io/agentgateway/agentgateway:0.8.2`, multi-arch), and a NodePort Service on
+`30081` with `externalTrafficPolicy: Cluster` — the same kind fix as lab 50, so
+host `:8081` reaches the pod.
 
-## Expose the concierge as A2A
+> The lab also ships `gateway.yaml` + `a2a-route.yaml` (the Gateway-API form) for
+> when you run agentgateway under kgateway's controller. They're kept for
+> reference; the standalone path above is what these steps use.
 
-```bash
-kubectl apply -f gateway.yaml
-kubectl apply -f a2a-route.yaml
-```
+## Drive it, and *see* it parse A2A
 
-Then from your Mac, exactly the call from lab 50 on a different port:
+Exactly the call from lab 50, on a different port (`:8081`):
 
 ```bash
 curl -sN http://a2a.localhost:8081/a2a/ops_concierge \
@@ -56,14 +56,17 @@ curl -sN http://a2a.localhost:8081/a2a/ops_concierge \
        "parts":[{"kind":"text","text":"deploy checkout-api 2.14.0 to production"}]}}}'
 ```
 
-Identical response. Completely different record of it:
+Identical response to lab 50. Completely different **record** of it:
 
 ```bash
-kubectl -n agentgateway-system logs -l app=agentgateway --tail=20
+kubectl -n agentgateway-system logs deploy/agentgateway --tail=30
 ```
 
-The gateway logged an **A2A call** — the method, the target agent, the task —
-not a POST to a path.
+Lab 50's Envoy access log said `POST /a2a/ops_concierge 200` — one opaque line
+for every A2A call your platform will ever make. agentgateway, because the route
+is marked `a2a`, logs the call in **A2A terms**. That difference — what the
+platform can *see*, and therefore *govern* — is the entire point of an A2A-aware
+proxy.
 
 ## The lab: north-south A2A is not just HTTP with extra steps
 

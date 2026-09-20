@@ -1,0 +1,89 @@
+# agentgateway, run STANDALONE (no kgateway / Gateway-API controller).
+#
+# One pod, one flat config file, one NodePort. This is the reliable way to run
+# agentgateway on kind and — because we write the config ourselves — the most
+# *visible* way to see an A2A-aware proxy work: the config literally says
+# "this route is A2A" (`a2a: {}`), and the logs then describe A2A calls rather
+# than opaque POSTs.
+#
+# Config schema is from the pinned release examples/a2a/config.yaml (v0.8.2).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agentgateway-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentgateway-config
+  namespace: agentgateway-system
+data:
+  config.yaml: |
+    # A single bind (port), one HTTP listener, one route marked as A2A, pointing
+    # at the in-cluster concierge Service. The `a2a: {}` policy is the whole
+    # point: it tells agentgateway to PARSE the A2A protocol on this route, so
+    # its telemetry and (later) policy are expressed in A2A terms — agent,
+    # method, task — instead of "POST /path".
+    binds:
+    - port: 8080
+      listeners:
+      - routes:
+        - policies:
+            a2a: {}
+          backends:
+          - host: ops-concierge.agents.svc.cluster.local:8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentgateway
+  namespace: agentgateway-system
+  labels: { app: agentgateway }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: agentgateway }
+  template:
+    metadata:
+      labels: { app: agentgateway }
+    spec:
+      containers:
+        - name: agentgateway
+          # 0.8.2 is multi-arch (arm64 + amd64). Pin for repeatability.
+          image: ghcr.io/agentgateway/agentgateway:0.8.2
+          args: ["-f", "/config/config.yaml"]
+          env:
+            # Make request handling visible in the logs.
+            - { name: RUST_LOG, value: "info" }
+          ports:
+            - { name: http,  containerPort: 8080 }
+            - { name: admin, containerPort: 15000 }   # metrics / UI
+          volumeMounts:
+            - { name: config, mountPath: /config }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: agentgateway-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentgateway
+  namespace: agentgateway-system
+spec:
+  type: NodePort
+  # THE kind fix, same as lab 50: host :8081 → control-plane node's :30081, but
+  # the pod runs on a worker. `Local` would only serve the entry node (which has
+  # no pod) and requests would hang. `Cluster` forwards to the pod anywhere.
+  externalTrafficPolicy: Cluster
+  selector: { app: agentgateway }
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30081        # terraform maps this to host :8081
