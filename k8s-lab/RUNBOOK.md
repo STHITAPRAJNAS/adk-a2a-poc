@@ -479,16 +479,27 @@ kubectl apply -f ./labs/40-istio-ambient/03-l7-authz.yaml
 ## Phase 5 — ingress, north-south  ·  ~10 min
 
 ```bash
-./labs/50-north-south/install.sh
+./labs/50-north-south/install.sh                       # Envoy Gateway controller
 kubectl apply -f ./labs/50-north-south/gateway.yaml -f ./labs/50-north-south/httproute.yaml
-kubectl -n agents wait --for=condition=Programmed gateway/north-south --timeout=180s
+kubectl -n envoy-gateway-system rollout status \
+  deploy -l gateway.envoyproxy.io/owning-gateway-name=north-south --timeout=180s
 ```
 
 ### ▸ Gate 5
 
-From WSL **or from a Windows browser** — the port mapping goes all the way out:
+**Judge success by traffic, not by the Gateway's `Programmed` condition.** The
+Envoy Service is a NodePort, which never gets a LoadBalancer address on kind, so
+`Programmed` can read `False`/late even when routing works — do **not** gate on
+`kubectl wait --for=condition=Programmed`. Test the card first (plain JSON, the
+fastest signal), then the full stream. From WSL **or a Windows browser** — the
+host port mapping goes all the way out:
 
 ```bash
+# plain GET through the gateway — want 200
+curl -sS -m 10 -o /dev/null -w '%{http_code}\n' \
+  http://a2a.localhost:8080/a2a/ops_concierge/.well-known/agent-card.json
+
+# the full negotiation from outside the cluster — want submitted → working → input-required
 curl -sN http://a2a.localhost:8080/a2a/ops_concierge \
   -H 'content-type: application/json' -H 'accept: text/event-stream' \
   -d '{"jsonrpc":"2.0","id":"1","method":"message/stream","params":{"message":{
@@ -496,10 +507,24 @@ curl -sN http://a2a.localhost:8080/a2a/ops_concierge \
        "parts":[{"kind":"text","text":"deploy checkout-api 2.14.0 to production"}]}}}'
 ```
 
-`submitted → working → input-required`, from outside the cluster, through a real
-gateway. If you applied STRICT mTLS in phase 4 this will fail until the gateway
-joins the mesh — that is [lab 50](labs/50-north-south/)'s third exercise and it
-is worth hitting.
+Two things this phase taught the hard way:
+
+- **The `EnvoyProxy` NodePort patch keys on `port`, not `name`.** A StrategicMerge
+  on a Service's `ports` list merges by `port`; omit it and the merge is rejected
+  (`does not contain declared merge key: port`), the Envoy Service never
+  finalizes, the proxy gets no endpoints, and every request **hangs**.
+  `gateway.yaml` pins `port: 80` + `nodePort: 30080` correctly — that was the real
+  bug behind a Gateway stuck `Programmed=False`.
+- **Ingress into an *ambient* backend is a genuine integration seam.** A plain
+  out-of-mesh gateway sending plaintext to an ambient (ztunnel-captured) backend
+  can hang; enrolling the gateway in the mesh isn't a clean fix either. The
+  production-correct patterns are to use **Istio's own gateway** for ambient
+  ingress, or front the backend with a **waypoint**. Also: on a kind/WSL cluster
+  that has survived many reboots/restarts, the plain cross-node pod data-path can
+  simply wedge — if the card hangs but the agents work when hit directly
+  (`kubectl -n agents port-forward deploy/ops-concierge 18000:8000`), **rebuild
+  the cluster** (it resets CNI) before chasing config. A fresh cluster is the
+  reliable way to get this green.
 
 ---
 
@@ -628,17 +653,57 @@ If the GPU does not come back (`nvidia-smi` fails inside the node), re-run
 `./scripts/setup-gpu-node.sh` — the containerd nvidia config persists, but the
 runtime occasionally needs a nudge after a cold boot.
 
-## Rebuilding from scratch
+## Rebuilding from scratch (full, reproducible)
+
+The cluster is disposable — rebuilding is faster than forensics, and it **resets
+CNI/networking**, which clears data-path weirdness a long-lived kind/WSL cluster
+accumulates after many reboots. This is the whole copy-paste path from a torn-down
+cluster to a working ingress; ~15 min, all scripted. (Phase 0 machine prep —
+tools, `inotify` limits, GPU — is assumed already done and survives, since it is
+host-level.)
 
 ```bash
-make clean                 # destroy the cluster and the registry
-cd labs/10-cluster && terraform apply    # ~3 min to rebuild
+cd ~/adk-a2a-poc && git pull origin claude/k8s-a2a-lab && cd k8s-lab
+
+# 1 — CLUSTER
+make clean
+(cd labs/10-cluster && terraform apply)              # add -var enable_gpu=false if no GPU
+export KUBECONFIG=$PWD/labs/10-cluster/kubeconfig    # already in ~/.bashrc if you added it
+kubectl get nodes                                    # 4 Ready
+
+# 2 — AGENTS (scripted model; no GPU/LLM needed to exercise A2A + mesh + ingress)
+./images/build.sh
+helm upgrade --install deployment-agent ./charts/adk-agent -n agents --create-namespace \
+  -f ./charts/adk-agent/values-specialist.yaml
+helm upgrade --install ops-concierge ./charts/adk-agent -n agents \
+  -f ./charts/adk-agent/values-concierge.yaml
+kubectl -n agents get pods                           # both 1/1 Running
+./scripts/verify-20-agents.sh
+
+# 3 — MESH (Phase 4): install, enroll, RESTART agents so ztunnel captures them, then authz
+./labs/40-istio-ambient/install.sh
+kubectl apply -f ./labs/40-istio-ambient/enroll.yaml
+kubectl -n agents rollout restart deploy/ops-concierge deploy/deployment-agent
+kubectl -n agents rollout status  deploy/ops-concierge
+kubectl apply -f ./labs/40-istio-ambient/01-l4-authz.yaml
+./scripts/verify-40-mesh.sh                          # all four ✓
+
+# 4 — INGRESS (Phase 5)
+./labs/50-north-south/install.sh
+kubectl apply -f ./labs/50-north-south/gateway.yaml -f ./labs/50-north-south/httproute.yaml
+kubectl -n envoy-gateway-system rollout status \
+  deploy -l gateway.envoyproxy.io/owning-gateway-name=north-south --timeout=180s
+sleep 10
+curl -sS -m 10 -o /dev/null -w 'card via gateway: %{http_code}\n' \
+  http://a2a.localhost:8080/a2a/ops_concierge/.well-known/agent-card.json   # want 200
 ```
 
-Rebuilding is almost always faster than forensics. Do it whenever the cluster is
-in a state you cannot explain — that disposability is the main practical
-advantage a local cluster has over EKS, so use it. (After a rebuild you redo the
-agent build/deploy and the Phase 3½ LLM steps, since those live in the cluster.)
+**Key ordering lesson:** agents are enrolled into the mesh *after* they exist, so
+they must be **restarted once** (step 3) to be captured by ztunnel — on a clean
+install pods deployed into an already-enrolled namespace are captured at birth
+with no restart. The GPU device plugin + real LLM (Phase 3 / 3½) and the later
+gateways layer on after step 4; they are optional for the core A2A + mesh +
+ingress path.
 
 ## Where the state lives
 
