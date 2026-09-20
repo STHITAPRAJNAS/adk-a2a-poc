@@ -44,7 +44,15 @@ kubectl config get-contexts 2>/dev/null | grep docker-desktop && echo "TURN IT O
 ## Layer 2 — the CLIs (Homebrew)
 
 ```bash
-brew install kind kubectl helm terraform istioctl jq
+brew install kind kubectl helm istioctl jq
+
+# Terraform was moved out of Homebrew core (HashiCorp BSL license change), so
+# `brew install terraform` fails with "No available formula". Use the tap:
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+# — or OpenTofu, a drop-in fork; the lab's HCL is unchanged, just use `tofu`:
+#   brew install opentofu
+
 brew install k9s          # optional but you'll want it by lab 40
 ```
 

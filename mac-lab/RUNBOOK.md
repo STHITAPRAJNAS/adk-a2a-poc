@@ -28,7 +28,10 @@ with a check at each step: [docs/mac-docker-desktop.md](docs/mac-docker-desktop.
 #      Memory 12 GB (8 GB floor) and CPUs 4+. Turn OFF Settings ▸ Kubernetes.
 
 # 0b — the CLIs
-brew install kind kubectl helm terraform istioctl jq
+brew install kind kubectl helm istioctl jq
+# Terraform moved out of Homebrew core; install it from HashiCorp's tap:
+brew tap hashicorp/tap && brew install hashicorp/tap/terraform
+#   (or OpenTofu, a drop-in: `brew install opentofu`, then use `tofu`)
 brew install k9s        # optional, handy from lab 40
 
 # 0c — sanity

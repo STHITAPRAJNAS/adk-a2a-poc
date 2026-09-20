@@ -15,7 +15,7 @@ The full step-by-step with checks is
 |---|---|
 | **Docker Desktop** | Install and start it. On Apple Silicon it runs a `linux/arm64` VM — everything the lab uses is multi-arch, so nothing is emulated. Give it **≥ 8 GB RAM** (12 GB comfortable) and **≥ 4 CPUs** in Settings ▸ Resources. |
 | **Homebrew** | The package manager for the CLIs below. |
-| **CLIs** | `brew install kind kubectl helm terraform istioctl jq` |
+| **CLIs** | `brew install kind kubectl helm istioctl jq` — then Terraform (moved out of Homebrew core): `brew tap hashicorp/tap && brew install hashicorp/tap/terraform`. OpenTofu is a drop-in alternative: `brew install opentofu` (use `tofu` for `terraform`). |
 
 Four kind nodes (well, three here) plus Istio plus two gateways is not a small
 footprint. 4 GB will give you nodes stuck `NotReady` with no obvious reason — the
