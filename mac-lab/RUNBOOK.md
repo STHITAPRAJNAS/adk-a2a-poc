@@ -10,11 +10,13 @@ Ollama on the Mac's Metal GPU).
 Each phase ends with a **Gate**: a command whose output tells you whether to
 proceed. Don't move on with a red gate.
 
-> **KUBECONFIG once.** Everything after Phase 1 needs this. Put it in your shell
-> profile so every terminal has it:
+> **KUBECONFIG once.** Everything after Phase 1 needs this. Run this **from the
+> `mac-lab/` directory** so it captures wherever you actually cloned the repo:
 > ```bash
-> echo 'export KUBECONFIG=~/adk-a2a-poc/mac-lab/labs/10-cluster/kubeconfig' >> ~/.zshrc
+> echo "export KUBECONFIG=$(pwd)/labs/10-cluster/kubeconfig" >> ~/.zshrc
+> source ~/.zshrc
 > ```
+> (Don't hardcode a `~/adk-a2a-poc/...` path — the repo can live anywhere.)
 
 ---
 
@@ -389,7 +391,8 @@ accumulates. ~15 min, all scripted. Phase 0 host prep (Docker Desktop, CLIs)
 survives; only the cluster is rebuilt.
 
 ```bash
-cd ~/adk-a2a-poc && git pull origin claude/k8s-a2a-lab && cd mac-lab
+# from your clone's mac-lab/ directory (wherever you cloned it)
+git pull origin claude/k8s-a2a-lab
 
 # 1 — CLUSTER
 make clean

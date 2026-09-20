@@ -91,7 +91,7 @@ Supporting reading, useful at any point:
 ## Quick start
 
 ```bash
-cd ~/adk-a2a-poc/mac-lab
+cd <your-clone>/mac-lab    # wherever you cloned the repo
 make doctor                # checks arch, Docker Desktop, kernel limits, ports
 cat RUNBOOK.md             # then follow it top to bottom
 ```
