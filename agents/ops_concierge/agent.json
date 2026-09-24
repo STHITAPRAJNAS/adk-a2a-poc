@@ -3,7 +3,7 @@
   "description": "Front door for platform release work. Accepts a plain-English release request, decides which specialist owns it, and delegates to the remote release-operations agent over A2A. Relays that agent's human-approval gates and long-running job handles back to its own caller, so a caller talking only to this agent still gets the full pause-and-resume contract.",
   "url": "http://127.0.0.1:8000/a2a/ops_concierge",
   "version": "1.0.0",
-  "protocolVersion": "0.3.0",
+  "protocolVersion": "1.0",
   "preferredTransport": "JSONRPC",
   "provider": {
     "organization": "adk-a2a-poc",
@@ -11,12 +11,10 @@
   },
   "capabilities": {
     "streaming": true,
-    "pushNotifications": false,
-    "stateTransitionHistory": true
+    "pushNotifications": false
   },
   "defaultInputModes": ["text/plain"],
   "defaultOutputModes": ["text/plain"],
-  "supportsAuthenticatedExtendedCard": false,
   "skills": [
     {
       "id": "release_request_intake",

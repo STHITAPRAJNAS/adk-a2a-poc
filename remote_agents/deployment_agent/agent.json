@@ -3,7 +3,7 @@
   "description": "Release operations specialist. Checks release readiness, runs compliance scans, raises human change-approval tickets and drives deployment jobs for services owned by the platform team. Pauses for a human decision before any production release.",
   "url": "http://127.0.0.1:8001/a2a/deployment_agent",
   "version": "1.0.0",
-  "protocolVersion": "0.3.0",
+  "protocolVersion": "1.0",
   "preferredTransport": "JSONRPC",
   "provider": {
     "organization": "adk-a2a-poc",
@@ -11,12 +11,10 @@
   },
   "capabilities": {
     "streaming": true,
-    "pushNotifications": false,
-    "stateTransitionHistory": true
+    "pushNotifications": false
   },
   "defaultInputModes": ["text/plain"],
   "defaultOutputModes": ["text/plain"],
-  "supportsAuthenticatedExtendedCard": false,
   "skills": [
     {
       "id": "release_readiness",
