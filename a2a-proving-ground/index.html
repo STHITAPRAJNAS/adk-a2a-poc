@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- head:begin -->
+<title>A2A Proving Ground</title>
+<meta name="description" content="Interactive, animated labs for the Agent2Agent (A2A) protocol 1.0: agent cards, discovery, skills, tasks, streaming, authentication, gateways and extensions.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 34 22%27%3E%3Ccircle cx=%275%27 cy=%2711%27 r=%274.5%27 fill=%27%232a4fb8%27/%3E%3Ccircle cx=%2729%27 cy=%2711%27 r=%274.5%27 fill=%27%230a7a5c%27/%3E%3Crect x=%2712.5%27 y=%277.5%27 width=%279%27 height=%277%27 rx=%273.5%27 fill=%27%23a86200%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&amp;family=JetBrains+Mono:wght@400;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400..650;1,8..60,400&amp;display=swap">
+<link rel="stylesheet" href="css/proving-ground.css">
+<!-- head:end -->
+</head>
+<body>
+<!-- body:begin -->
+<header class="topbar">
+  <a class="brand" href="#home" aria-label="A2A Proving Ground, overview">
+    <svg viewBox="0 0 34 22" aria-hidden="true">
+      <line x1="5" y1="11" x2="29" y2="11" style="stroke:var(--rule-strong)" stroke-width="1.5" stroke-dasharray="2 3"></line>
+      <circle cx="5" cy="11" r="4.5" style="fill:var(--client)"></circle>
+      <circle cx="29" cy="11" r="4.5" style="fill:var(--server)"></circle>
+      <rect x="12.5" y="7.5" width="9" height="7" rx="3.5" style="fill:var(--proxy)"></rect>
+    </svg>
+    <span class="brand-name">A2A Proving Ground<small>SPEC 1.0 · INTERACTIVE LABS</small></span>
+  </a>
+  <span class="topbar-spacer"></span>
+  <div class="speed" id="pg-speed"><span>Animation</span></div>
+  <div class="progress-meter" id="pg-progress" aria-label="Lessons passed"><span>0 / 0 passed</span><div class="bar"><i></i></div></div>
+  <a class="spec-link" href="https://a2a-protocol.org/latest/specification/" target="_blank" rel="noopener">Spec&nbsp;↗</a>
+</header>
+<div class="shell">
+  <nav class="rail" id="pg-rail" aria-label="Syllabus"></nav>
+  <main class="main" id="pg-main">
+    <noscript><p class="result warn">The labs are interactive and need JavaScript. The lesson text is in js/lessons/*.js if you want to read it raw.</p></noscript>
+  </main>
+</div>
+<script src="js/core.js"></script>
+<script src="js/spec.js"></script>
+<script src="js/lessons/01-foundations.js"></script>
+<script src="js/lessons/02-discovery.js"></script>
+<script src="js/lessons/03-conversation.js"></script>
+<script src="js/lessons/04-security.js"></script>
+<script src="js/lessons/05-infrastructure.js"></script>
+<script src="js/lessons/06-mastery.js"></script>
+<script src="js/home.js"></script>
+<script>window.PG.start();</script>
+<!-- body:end -->
+</body>
+</html>

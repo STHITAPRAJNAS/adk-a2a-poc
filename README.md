@@ -297,7 +297,14 @@ Both have a styled `.html` twin in `docs/` if you prefer reading them that way.
 There is also **[`k8s-lab/`](k8s-lab/)** on the `claude/k8s-a2a-lab` branch — a
 hands-on path that runs these two agents on Kubernetes with a service mesh and
 three different gateways, to make the east-west/north-south distinction
-something you can measure rather than read about.
+something you can measure rather than read about. **[`mac-lab/`](mac-lab/)** is
+the same path for an Apple Silicon Mac (Docker Desktop, no GPU node).
+
+**[`a2a-proving-ground/`](a2a-proving-ground/)** is an interactive website for
+learning the A2A 1.0 protocol itself: sixteen animated labs covering cards,
+discovery, signatures, skills, tasks, streaming, authentication, authorization,
+bindings, gateways and extensions, each with a live wire inspector. Open
+`a2a-proving-ground/index.html`, or serve the folder locally.
 
 ---
 

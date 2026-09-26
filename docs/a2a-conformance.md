@@ -17,7 +17,7 @@ confuse everyone coming from the raw `a2a-samples`:
 | Spec topic | Requirement | This project | Verdict |
 |---|---|---|---|
 | Actors | client / opaque server | `ops_concierge` (client) → `deployment_agent` (server) | ✅ |
-| Agent Card | identity, url, capabilities, skills | both `agent.json`; now `protocolVersion: "1.0"` | ✅ |
+| Agent Card | identity, supportedInterfaces, capabilities, skills | both `agent.json` written natively in 1.0 shape (`supportedInterfaces`) | ✅ |
 | Transport | HTTP + JSON‑RPC 2.0 (gRPC/REST optional) | JSON‑RPC only | ✅ (one binding is allowed) |
 | Messages & Parts | role, messageId, Parts | text Parts + DataParts | ✅ |
 | Task lifecycle | submitted→working→input‑required→terminal | exactly this | ✅ |
@@ -136,27 +136,36 @@ the agent is the *kitchen*. There's no per‑dish API.
 
 ## 5. What changed 0.3 → 1.0, and what we fixed
 
-The cards previously declared `0.3.0`. 1.0 breaking changes relevant to us:
+The cards previously declared `0.3.0`. 1.0 breaking changes relevant to us, checked
+against `specification/a2a.proto` (message `AgentCard`) and the installed
+`a2a-sdk` 1.1.2, whose `AgentCard` is exactly that proto:
 
-| 1.0 change | Was | Now (fixed) |
+| 1.0 change | Was | Now |
 |---|---|---|
-| Version is Major.Minor, no patch | `protocolVersion: "0.3.0"` | `"1.0"` |
+| `url` + `preferredTransport` + top-level `protocolVersion` replaced by an ordered `supportedInterfaces` list of `{url, protocolBinding, protocolVersion}` | top-level `url`, `preferredTransport`, `protocolVersion: "0.3.0"` | `supportedInterfaces: [{url, protocolBinding: "JSONRPC", protocolVersion: "1.0"}]` |
+| Version is Major.Minor, no patch | `"0.3.0"` | `"1.0"` |
 | `stateTransitionHistory` capability removed | in `capabilities` | removed |
-| `supportsAuthenticatedExtendedCard` → `capabilities.extendedAgentCard` | top‑level `false` | removed (defaults false; omit) |
+| `supportsAuthenticatedExtendedCard` → `capabilities.extendedAgentCard` | top‑level `false` | removed (defaults false) |
 | `A2A-Version` header (empty ⇒ 0.3) | client doesn't send | ADK/RemoteA2aAgent concern; unset ⇒ 0.3 semantics |
 | `final` removed from `TaskStatusUpdateEvent` | probe reads `.final` | harmless (reads None) |
 | `tasks/list`, PKCE/device‑code OAuth, push‑config rename | not used | not claimed |
-| "canceled" US spelling, UUID ids | already handled | ✅ |
 
-Fixed here: both `agent.json` now say `protocolVersion: "1.0"` and drop the two
-removed fields. Re‑verify with `scripts/verify-20-agents.sh` (card still served)
-after a rebuild.
+**What ADK actually serves.** Even from the old 0.3 keys, ADK 2.8 + `a2a-sdk` 1.1.2
+already served a 1.0-shaped card on the wire: it converted `url` + `preferredTransport`
+into `supportedInterfaces` with `protocolVersion: "1.0"` and dropped the legacy keys.
+So the wire was conformant; only the source files used the old spelling.
 
-Note the version‑consistency point: the image pins `a2a-sdk==1.1.2` (a 1.x SDK),
-so advertising `1.0` in the card is the *consistent* choice; the old `0.3.0` was a
-leftover.
+**What changed in this repo.** Both `agent.json` files are now written natively in
+1.0 form (`supportedInterfaces`, no top-level `url`/`preferredTransport`/`protocolVersion`,
+no `stateTransitionHistory` or `supportsAuthenticatedExtendedCard`). Verified locally:
+ADK loads them, serves the same `supportedInterfaces`, the two-hop chain probe completes
+(`submitted → working → input-required → … → completed`), and the full test suite passes
+(40 passed).
 
----
+**Still on the old spelling:** the Helm values that generate the cards inside the
+Kubernetes labs (`k8s-lab/` and `mac-lab/`, `charts/adk-agent/values-*.yaml`). They work,
+because ADK translates them at serve time, but they should be migrated the same way for
+consistency.
 
 ## 6. The security divergence (the honest gap)
 

@@ -1,10 +1,14 @@
 {
   "name": "ops_concierge",
   "description": "Front door for platform release work. Accepts a plain-English release request, decides which specialist owns it, and delegates to the remote release-operations agent over A2A. Relays that agent's human-approval gates and long-running job handles back to its own caller, so a caller talking only to this agent still gets the full pause-and-resume contract.",
-  "url": "http://127.0.0.1:8000/a2a/ops_concierge",
+  "supportedInterfaces": [
+    {
+      "url": "http://127.0.0.1:8000/a2a/ops_concierge",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
   "version": "1.0.0",
-  "protocolVersion": "1.0",
-  "preferredTransport": "JSONRPC",
   "provider": {
     "organization": "adk-a2a-poc",
     "url": "https://github.com/sthitaprajnas/adk-a2a-poc"
@@ -21,10 +25,7 @@
       "name": "Release request intake",
       "description": "Takes a natural-language release request, routes it to the agent that owns the work, and returns that agent's answer. Release work is delegated to a separate release-operations service over A2A; this agent performs no deployments itself.",
       "tags": ["routing", "delegation", "release", "front-door"],
-      "examples": [
-        "Deploy checkout-api 2.14.0 to production",
-        "Is billing-worker 3.1.0 ready to ship?"
-      ]
+      "examples": ["Deploy checkout-api 2.14.0 to production", "Is billing-worker 3.1.0 ready to ship?"]
     },
     {
       "id": "delegated_approval_relay",
