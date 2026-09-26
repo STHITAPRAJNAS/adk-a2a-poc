@@ -134,7 +134,7 @@
             ok();
           } else if (scheme === "oauthCC") {
             if (!(await step("client", "auth", "POST /token", "The client agent authenticates as itself and asks for a scoped token.",
-              { actor: "client", label: "POST /oauth2/token · grant_type=client_credentials", http: { start: "POST /oauth2/token HTTP/1.1", headers: { Host: "auth.example.com", "Content-Type": "application/x-www-form-urlencoded", Authorization: "Basic b3BzLWNvbmNpZXJnZTrigKY=" } },
+              { actor: "client", label: "POST /oauth2/token · grant_type=client_credentials", http: { start: "POST /oauth2/token HTTP/1.1", headers: { Host: "auth.example.com", "Content-Type": "application/x-www-form-urlencoded", Authorization: "Basic <base64(client_id:client_secret)>" } },
                 body: "grant_type=client_credentials&scope=deploy%3Aread" }))) return;
             wire.add({ kind: "in", actor: "auth", label: "access_token (JWT) · expires_in 300", status: "200", http: SPEC.res(200), body: { access_token: short(T), token_type: "Bearer", expires_in: 300, scope: "deploy:read" } });
             await step("auth", "client", "token");

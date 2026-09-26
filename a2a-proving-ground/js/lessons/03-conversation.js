@@ -211,7 +211,7 @@
           h("button", { class: "btn small", type: "button", text: "+ text", onclick: function () { parts.push({ kind: "text", value: "Also notify #releases", mediaType: "text/plain" }); paint(); } }),
           h("button", { class: "btn small", type: "button", text: "+ data", onclick: function () { parts.push({ kind: "data", value: '{"canary":{"steps":[10,50,100]}}', mediaType: "application/json" }); paint(); } }),
           h("button", { class: "btn small", type: "button", text: "+ url", onclick: function () { parts.push({ kind: "url", value: "https://ci.example.com/builds/8812/sbom.json", mediaType: "application/json" }); paint(); } }),
-          h("button", { class: "btn small", type: "button", text: "+ raw PNG", onclick: function () { parts.push({ kind: "raw", value: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", mediaType: "image/png", filename: "rollout.png" }); paint(); } }),
+          h("button", { class: "btn small", type: "button", text: "+ raw PNG", onclick: function () { parts.push({ kind: "raw", value: "iVBORw0KGgo…(base64-encoded PNG bytes)", mediaType: "image/png", filename: "rollout.png" }); paint(); } }),
           file),
         rows,
         h("div", { class: "row" }, h("span", { class: "small muted", html: "Agent's <code>defaultInputModes</code>: " + accepted.join(", ") }), h("span", { style: { flex: 1 } }),

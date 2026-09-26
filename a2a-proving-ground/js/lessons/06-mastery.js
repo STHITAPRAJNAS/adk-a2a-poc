@@ -137,7 +137,7 @@
         let tokenExpired = !!on.expired;
         if (!tokenExpired) {
           stage.caption("Client credentials grant for a scoped, short-lived token.");
-          wire.add({ actor: "client", label: "POST /oauth2/token · client_credentials · scope=" + scopes, http: { start: "POST /oauth2/token HTTP/1.1", headers: { Host: "auth.example.com", "Content-Type": "application/x-www-form-urlencoded", Authorization: "Basic b3BzLWNvbmNpZXJnZTrigKY=" } }, body: "grant_type=client_credentials&scope=" + encodeURIComponent(scopes) });
+          wire.add({ actor: "client", label: "POST /oauth2/token · client_credentials · scope=" + scopes, http: { start: "POST /oauth2/token HTTP/1.1", headers: { Host: "auth.example.com", "Content-Type": "application/x-www-form-urlencoded", Authorization: "Basic <base64(client_id:client_secret)>" } }, body: "grant_type=client_credentials&scope=" + encodeURIComponent(scopes) });
           if (!(await stage.send("client", "auth", "POST /token"))) return;
           wire.add({ kind: "in", actor: "auth", label: "access_token · expires_in 300", status: "200", http: SPEC.res(200), body: { access_token: "eyJhbGciOiJSUzI1NiJ9.…", token_type: "Bearer", expires_in: 300, scope: scopes } });
           await stage.send("auth", "client", "token");
