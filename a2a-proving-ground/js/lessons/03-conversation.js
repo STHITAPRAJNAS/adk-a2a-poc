@@ -391,6 +391,13 @@
           n.style.borderColor = on ? "var(" + STATE_VAR[s] + ")" : "";
         });
         Object.keys(edgeEls).forEach(function (k) { edgeEls[k].classList.toggle("hot", !!prev && k === prev + ">" + cur.state); });
+        const edge = prev && edgeEls[prev + ">" + cur.state];
+        if (edge && !PG.reducedMotion && edge.getTotalLength) {
+          const L = edge.getTotalLength(), dot = h("div", { class: "fsm-dot" }), fr = [];
+          for (let i = 0; i <= 20; i++) { const pt = edge.getPointAtLength((L * i) / 20); fr.push({ left: pt.x + "%", top: pt.y + "%" }); }
+          fsm.appendChild(dot);
+          try { dot.animate(fr, { duration: 700 / PG.speed, easing: "cubic-bezier(.45,.05,.35,1)" }).finished.then(function () { dot.remove(); }, function () { dot.remove(); }); } catch (e) { dot.remove(); }
+        }
         actions.innerHTML = "";
         const s = cur.state;
         function act(label, cls, fn) { actions.appendChild(h("button", { class: "btn small " + (cls || ""), type: "button", text: label, onclick: fn })); }

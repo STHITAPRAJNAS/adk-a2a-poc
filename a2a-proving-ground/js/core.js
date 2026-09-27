@@ -241,6 +241,9 @@
 
   /* ── stage: actors + animated packets ────────────────────────────────── */
   const GLYPH = { client: "C", server: "A", proxy: "G", auth: "Z", registry: "R", user: "U", attacker: "!" };
+  function toneVar(tone) { return "var(--" + (tone === "err" ? "err" : tone) + ")"; }
+  function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
   PG.stage = function (parent, cfg) {
     const el = h("div", { class: "stage" + (cfg.size ? " " + cfg.size : "") });
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -251,6 +254,8 @@
     const caption = h("div", { class: "stage-caption", "aria-live": "polite" });
     const actors = {};
     const lines = {};
+    const inFlight = {};
+    const busyTimers = {};
 
     (cfg.actors || []).forEach(function (a) {
       const badge = h("div", { class: "a-badge" });
@@ -271,17 +276,36 @@
 
     function link(a, b, cls) {
       const A = actors[a].def, B = actors[b].def;
-      const key = a + "|" + b;
+      const key = lines[a + "|" + b] ? a + "|" + b : lines[b + "|" + a] ? b + "|" + a : a + "|" + b;
       let ln = lines[key];
       if (!ln) {
         ln = document.createElementNS("http://www.w3.org/2000/svg", "line");
         svg.appendChild(ln);
         lines[key] = ln;
+        ln.setAttribute("x1", A.x); ln.setAttribute("y1", A.y);
+        ln.setAttribute("x2", B.x); ln.setAttribute("y2", B.y);
+        ln._from = a;
       }
-      ln.setAttribute("x1", A.x); ln.setAttribute("y1", A.y);
-      ln.setAttribute("x2", B.x); ln.setAttribute("y2", B.y);
       ln.setAttribute("class", cls || "");
       return ln;
+    }
+    function lineFor(a, b) { return lines[a + "|" + b] || lines[b + "|" + a] || null; }
+    function setBusy(id, on) {
+      const a = actors[id];
+      if (!a) return;
+      clearTimeout(busyTimers[id]);
+      a.node.classList.toggle("busy", !!on);
+      if (on) busyTimers[id] = setTimeout(function () { a.node.classList.remove("busy"); }, 1500 / PG.speed);
+    }
+    function ripple(x, y, color) {
+      if (PG.reducedMotion) return;
+      const r = h("span", { class: "ripple", style: { borderColor: color } });
+      el.appendChild(r);
+      try {
+        r.animate([{ transform: "translate(" + x + "px," + y + "px) translate(-50%,-50%) scale(.35)", opacity: 0.75 },
+          { transform: "translate(" + x + "px," + y + "px) translate(-50%,-50%) scale(2.3)", opacity: 0 }],
+          { duration: 620, easing: "cubic-bezier(.2,.7,.3,1)" }).finished.then(function () { r.remove(); }, function () { r.remove(); });
+      } catch (e) { r.remove(); }
     }
 
     const tok = PG.session;
@@ -294,7 +318,10 @@
       badge: function (id, content) {
         const b = actors[id].badge;
         b.innerHTML = "";
-        if (content) append(b, typeof content === "string" ? h("span", { class: "chip", html: content }) : content);
+        if (!content) return;
+        const node = typeof content === "string" ? h("span", { class: "chip", html: content }) : content;
+        node.classList.add("pop");
+        b.appendChild(node);
       },
       set: function (id, opts) {
         const a = actors[id];
@@ -302,38 +329,104 @@
         if (opts.locked !== undefined) a.node.classList.toggle("locked", !!opts.locked);
         if (opts.label) a.node.querySelector(".a-label").textContent = opts.label;
       },
+      busy: setBusy,
+      /* Keep a connection visibly open (an SSE stream, a TLS session). */
+      hold: function (a, b, on, tone) {
+        const ln = lineFor(a, b) || link(a, b);
+        ln.classList.toggle("held", !!on);
+        if (on) ln.style.setProperty("--live", toneVar(tone || actors[a].def.role));
+      },
       flash: function (id) {
         const n = actors[id].node;
         n.classList.add("flash");
         setTimeout(function () { n.classList.remove("flash"); }, 450);
       },
-      /* Move a labelled packet from one actor to another. Resolves false if
-       * the user navigated away mid-flight, so flows can stop cleanly. */
+      /* Fly a labelled packet from one actor to another along a curved path.
+       * Requests and replies arc on opposite sides so they never overlap. The
+       * link lights up while in flight; the receiver ripples and shows a
+       * working pulse. Resolves false if the reader navigated away. */
       send: function (from, to, label, opts) {
         opts = opts || {};
         if (!PG.alive(tok)) return Promise.resolve(false);
         const A = actors[from].def, B = actors[to].def;
-        const tone = opts.tone || actors[from].def.role;
-        const p = h("div", { class: "packet t-" + tone, text: label });
+        const tone = opts.tone || A.role;
+        const color = toneVar(tone);
+        setBusy(from, false);
+        const r = el.getBoundingClientRect();
+        const W = r.width || 600, H = r.height || 280;
+        let ax = (A.x / 100) * W, ay = (A.y / 100) * H, bx = (B.x / 100) * W, by = (B.y / 100) * H;
+        const p = h("div", { class: "packet t-" + tone }, h("span", { class: "pk-dot", "aria-hidden": "true" }), label);
         el.appendChild(p);
-        const dur = PG.reducedMotion ? 1 : (opts.dur || 900) / PG.speed;
+        /* Launch from and land at the actors' edges, so a packet never
+         * covers the label of the actor it is talking to. */
+        const len0 = Math.hypot(bx - ax, by - ay) || 1, ux = (bx - ax) / len0, uy = (by - ay) / len0;
+        function reach(hw, hh) {
+          const tx = Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, ty = Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity;
+          return Math.min(tx, ty);
+        }
+        const pk = reach(p.offsetWidth / 2, p.offsetHeight / 2);
+        const na = actors[from].node, nb = actors[to].node;
+        const da = reach(na.offsetWidth / 2 + 3, na.offsetHeight / 2 + 3), db = reach(nb.offsetWidth / 2 + 3, nb.offsetHeight / 2 + 3);
+        let hitX = bx, hitY = by;
+        if (da + db + 2 * pk < len0 * 0.92) {
+          hitX = bx - ux * db; hitY = by - uy * db;
+          ax += ux * (da + pk); ay += uy * (da + pk);
+          bx -= ux * (db + pk); by -= uy * (db + pk);
+        }
+        const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+        const side = from < to ? 1 : -1;
+        const bend = Math.min(30, len * 0.16) * side;
+        const cx = (ax + bx) / 2 + (-dy / len) * bend, cy = (ay + by) / 2 + (dx / len) * bend;
+        const N = 18, frames = [];
+        for (let i = 0; i <= N; i++) {
+          const t = ease(i / N), u = 1 - t;
+          const x = u * u * ax + 2 * u * t * cx + t * t * bx, y = u * u * ay + 2 * u * t * cy + t * t * by;
+          frames.push({ transform: "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) translate(-50%,-50%)", opacity: i === 0 ? 0 : 1 });
+        }
+        const dur = PG.reducedMotion ? 1 : (opts.dur || 950) / PG.speed;
+        const ghosts = [];
+        if (!PG.reducedMotion) {
+          for (let g = 1; g <= 4; g++) {
+            const gh = h("span", { class: "pk-ghost", style: { background: color, opacity: String(0.55 - g * 0.11), width: 9 - g + "px", height: 9 - g + "px" } });
+            el.appendChild(gh);
+            ghosts.push(gh);
+          }
+        }
+        const ln = lineFor(from, to);
+        if (ln) {
+          const key = ln.getAttribute("x1") + ln.getAttribute("y1") + ln.getAttribute("x2") + ln.getAttribute("y2");
+          inFlight[key] = (inFlight[key] || 0) + 1;
+          ln.style.setProperty("--live", color);
+          ln.classList.add("live");
+          ln.classList.toggle("rev", ln._from !== from);
+        }
+        function done() {
+          p.remove();
+          ghosts.forEach(function (g) { g.remove(); });
+          if (ln) {
+            const key = ln.getAttribute("x1") + ln.getAttribute("y1") + ln.getAttribute("x2") + ln.getAttribute("y2");
+            inFlight[key] = Math.max(0, (inFlight[key] || 1) - 1);
+            if (!inFlight[key]) ln.classList.remove("live", "rev");
+          }
+        }
         let anim;
         try {
-          anim = p.animate(
-            [{ left: A.x + "%", top: A.y + "%", opacity: 0.2 }, { left: A.x + "%", top: A.y + "%", opacity: 1, offset: 0.08 },
-             { left: B.x + "%", top: B.y + "%", opacity: 1 }],
-            { duration: dur, easing: "cubic-bezier(.45,.05,.35,1)", fill: "forwards" });
+          anim = p.animate(frames, { duration: dur, easing: "linear", fill: "forwards" });
+          ghosts.forEach(function (g, i) {
+            g.animate(frames, { duration: dur, delay: (i + 1) * 38 / PG.speed, easing: "linear", fill: "forwards" });
+          });
         } catch (e) { anim = null; }
-        const done = anim ? anim.finished : PG.sleep(dur);
-        return done.then(function () {
-          if (opts.stay) setTimeout(function () { p.remove(); }, opts.stay / PG.speed);
-          else p.remove();
+        const finished = anim ? anim.finished : PG.sleep(dur);
+        return finished.then(function () {
+          done();
           if (!PG.alive(tok)) return false;
+          ripple(hitX, hitY, color);
           api.flash(to);
+          if (!opts.noBusy) setBusy(to, true);
           return true;
-        }, function () { p.remove(); return false; });
+        }, function () { done(); return false; });
       },
-      clearPackets: function () { el.querySelectorAll(".packet").forEach(function (p) { p.remove(); }); },
+      clearPackets: function () { el.querySelectorAll(".packet,.pk-ghost,.ripple").forEach(function (p) { p.remove(); }); },
     };
     return api;
   };

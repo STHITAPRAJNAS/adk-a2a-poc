@@ -74,6 +74,7 @@
         stateBox.append(h("span", { class: "small muted", text: "Task:" }), h("span", { class: "chip mono", text: id }), PG.stateChip(st));
       }
       function stop(i, msg) {
+        stage.hold("client", "gw", false); stage.hold("gw", "agent", false);
         mark(i, "fail", "stopped");
         verdict.className = "result err";
         verdict.innerHTML = msg;
@@ -85,6 +86,7 @@
         stepEls.forEach(function (_, i) { mark(i, "", ""); });
         verdict.className = "result"; verdict.textContent = "Running…";
         stage.caption("");
+        stage.link("client", "gw", ""); stage.link("gw", "agent", "");
         try { await play(); } finally { if (api.alive()) run.disabled = false; }
       });
 
@@ -174,6 +176,7 @@
           return stop(5, "<b>Stopped: version mismatch.</b> The client asked for A2A 0.5, which this interface doesn't serve. Fix: send the version from the chosen <span class='mono'>supportedInterfaces</span> entry (1.0), and don't silently fall back.");
         }
         if (!(await stage.send("gw", "agent", "SendStreamingMessage"))) return;
+        stage.hold("client", "gw", true, "server"); stage.hold("gw", "agent", true, "server");
         const ev = function (label, sse) { wire.add({ kind: "evt", actor: "server", label: label, sse: sse }); };
         ev("task · SUBMITTED", [{ task: SPEC.task(taskId, ctx, "SUBMITTED") }]);
         setState(taskId, "SUBMITTED");
@@ -193,6 +196,7 @@
           stage.link("client", "gw", "");
           if (!(await stage.send("client", "gw", "SubscribeToTask"))) return;
           await stage.send("gw", "agent", "SubscribeToTask");
+          stage.hold("client", "gw", true, "server");
           ev("task snapshot · WORKING (re-attached)", [{ task: SPEC.task(taskId, ctx, "WORKING") }]);
           await stage.send("agent", "client", "snapshot", { dur: 600 });
         }
@@ -200,6 +204,7 @@
         ev("statusUpdate · INPUT_REQUIRED · approval needed (CHG-2041)", [SPEC.statusUpdate(taskId, ctx, "INPUT_REQUIRED", "Production deploy needs human approval. Ticket CHG-2041. Approve?")]);
         setState(taskId, "INPUT_REQUIRED");
         await stage.send("agent", "client", "INPUT_REQUIRED", { tone: "server" });
+        stage.hold("client", "gw", false); stage.hold("gw", "agent", false);
         mark(5, "pass", on.timeout ? "re-attached once" : "paused for input");
         if (!alive()) return;
 
@@ -224,6 +229,7 @@
           stage.actors.agent.node.querySelector(".a-sub").textContent = "replica B";
         }
         if (!(await stage.send("gw", "agent", "resume"))) return;
+        stage.hold("client", "gw", true, "server"); stage.hold("gw", "agent", true, "server");
         if (on.notaskid) {
           const other = "task-" + PG.hex(3);
           ev("task · SUBMITTED (a brand-new task " + other + ")", [{ task: SPEC.task(other, ctx, "SUBMITTED") }]);
@@ -254,6 +260,7 @@
         ev("statusUpdate · COMPLETED (stream closes)", [SPEC.statusUpdate(taskId, ctx, "COMPLETED")]);
         setState(taskId, "COMPLETED");
         await stage.send("agent", "client", "COMPLETED");
+        stage.hold("client", "gw", false); stage.hold("gw", "agent", false);
         if (!alive()) return;
         mark(7, "pass", "COMPLETED");
         stage.caption("Deployed. Every step followed the spec.");

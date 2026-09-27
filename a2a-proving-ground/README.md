@@ -10,21 +10,66 @@ Everything is taught from the primary sources in
 `specification/a2a.proto` (1.0.x), plus the `docs/topics/*` guides. Section numbers are cited on
 every lesson so you can check the claim.
 
-## Run it
+## Run it on your laptop (localhost)
 
-No build step, no dependencies.
+It's a static site: no build step, no npm install, no backend. You only need a tiny local web
+server, and Python 3 (preinstalled on macOS and most Linux) is enough. Everything below serves
+on **http://localhost:8765** and is reachable only from your own machine.
+
+### One command
+
+From the repo root:
+
+| Where | Command |
+|---|---|
+| macOS / Linux | `./a2a-proving-ground/serve.sh` |
+| Windows (WSL / Ubuntu shell) | `./a2a-proving-ground/serve.sh`, then open http://localhost:8765 in your Windows browser |
+| Windows (PowerShell) | `.\a2a-proving-ground\serve.ps1` |
+
+The script starts the server and opens your browser. Options:
 
 ```bash
-# simplest: open the file
-open a2a-proving-ground/index.html          # macOS
-xdg-open a2a-proving-ground/index.html      # Linux
-
-# recommended: serve it, so the signature lab can use WebCrypto (needs a secure context)
-cd a2a-proving-ground && python3 -m http.server 8765
-# then browse http://localhost:8765
+./a2a-proving-ground/serve.sh 9000        # different port
+NO_OPEN=1 ./a2a-proving-ground/serve.sh   # don't open a browser
+```
+```powershell
+.\a2a-proving-ground\serve.ps1 -Port 9000 -NoOpen
+# if scripts are blocked:
+powershell -ExecutionPolicy Bypass -File .\a2a-proving-ground\serve.ps1
 ```
 
-Progress (visited / passed lessons) is kept in your browser's `localStorage` only.
+Stop the server with **Ctrl+C**.
+
+### Or by hand
+
+```bash
+cd a2a-proving-ground
+
+python3 -m http.server 8765 --bind 127.0.0.1        # macOS / Linux / WSL
+py -m http.server 8765 --bind 127.0.0.1             # Windows PowerShell
+
+npx --yes serve -l 8765 .                           # if you prefer Node
+docker run --rm -p 8765:80 -v "$PWD":/usr/share/nginx/html:ro nginx:alpine   # or Docker
+```
+
+Then browse **http://localhost:8765**.
+
+### Why a server instead of double-clicking `index.html`?
+
+Opening the file directly (`file://…`) works for almost everything. Two labs need the browser's
+WebCrypto API, which only runs in a secure context (`https://` or `http://localhost`): real ES256
+card signing in *Trusting a card*, and the PKCE hash in *Authentication*. Serving on localhost
+makes both work.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `Address already in use` | Another app has the port. Use `./serve.sh 9000` (or `-Port 9000`). |
+| WSL: Windows browser can't reach it | `serve.sh` binds `0.0.0.0` inside WSL so localhost forwarding works. If it still fails, run `wsl --shutdown` in PowerShell and try again, or use `serve.ps1` from Windows. |
+| Fonts look plain | The page uses Google Fonts. Offline, it falls back to system fonts; everything else works. |
+| Want to view it on your phone | `BIND=0.0.0.0 ./serve.sh`, then open `http://<laptop-ip>:8765`. Anyone on the same Wi-Fi can reach it while it runs, and the two WebCrypto labs won't work there because it isn't localhost or HTTPS. |
+| Start the course over | *Final checkpoint* → **Reset my progress**. Progress is kept only in your browser's `localStorage`. |
 
 ## What's inside
 
@@ -68,6 +113,7 @@ Plain HTML, CSS and classic `<script>` files, so it also works from `file://`:
 
 ```
 index.html                 shell: top bar, syllabus rail, main area
+serve.sh / serve.ps1       one-command localhost server (macOS/Linux/WSL, Windows)
 css/proving-ground.css     tokens (light + dark), layout, components
 js/core.js                 router, progress, PG.stage (animated actors),
                            PG.wire (wire inspector), PG.quiz

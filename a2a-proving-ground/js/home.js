@@ -11,15 +11,15 @@
     ["client", "auth", "client_credentials", "Authenticate. The card says OAuth2 client credentials, so get a scoped token."],
     ["auth", "client", "Bearer token", null],
     ["client", "gw", "SendStreamingMessage", "Send. One JSON-RPC call through the A2A-aware gateway."],
-    ["gw", "agent", "SendStreamingMessage", null],
+    ["gw", "agent", "SendStreamingMessage", null, function (st) { st.hold("client", "gw", true, "server"); st.hold("gw", "agent", true, "server"); }],
     ["agent", "gw", "WORKING", "Stream. Task status arrives as Server-Sent Events."],
     ["gw", "client", "WORKING", null],
     ["agent", "gw", "INPUT_REQUIRED", "Pause. Production needs a human approval."],
-    ["gw", "client", "INPUT_REQUIRED", null],
+    ["gw", "client", "INPUT_REQUIRED", null, function (st) { st.hold("client", "gw", false); st.hold("gw", "agent", false); }],
     ["client", "gw", "approve · taskId", "Resume on the same taskId."],
-    ["gw", "agent", "approve · taskId", null],
+    ["gw", "agent", "approve · taskId", null, function (st) { st.hold("client", "gw", true, "server"); st.hold("gw", "agent", true, "server"); }],
     ["agent", "gw", "artifact · COMPLETED", "Deliver. The rollout report arrives as an Artifact."],
-    ["gw", "client", "artifact · COMPLETED", null],
+    ["gw", "client", "artifact · COMPLETED", null, function (st) { st.hold("client", "gw", false); st.hold("gw", "agent", false); }],
   ];
 
   PG.renderHome = function (main) {
@@ -68,6 +68,7 @@
           if (!playing || !PG.alive(tok)) break;
           if (s[3]) stage.caption("<b>" + s[3].split(". ")[0] + ".</b> " + s[3].split(". ").slice(1).join(". "));
           await stage.send(s[0], s[1], s[2], { dur: 1000 });
+          if (s[4] && PG.alive(tok)) s[4](stage);
           await PG.sleep(120);
         }
         await PG.sleep(900);

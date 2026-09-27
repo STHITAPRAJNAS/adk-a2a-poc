@@ -303,8 +303,8 @@ the same path for an Apple Silicon Mac (Docker Desktop, no GPU node).
 **[`a2a-proving-ground/`](a2a-proving-ground/)** is an interactive website for
 learning the A2A 1.0 protocol itself: sixteen animated labs covering cards,
 discovery, signatures, skills, tasks, streaming, authentication, authorization,
-bindings, gateways and extensions, each with a live wire inspector. Open
-`a2a-proving-ground/index.html`, or serve the folder locally.
+bindings, gateways and extensions, each with a live wire inspector. Run it on
+localhost with `./a2a-proving-ground/serve.sh` (Windows: `serve.ps1`); see its README.
 
 ---
 
