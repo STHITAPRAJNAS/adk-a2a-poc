@@ -1,0 +1,24 @@
+# Stretch exercise for lab 80: the same, for the front door.
+#
+#   kubectl -n agents patch deploy ops-concierge --patch-file durable-concierge.yaml
+#
+# The concierge holds a task of its own (the caller's) AND a session that
+# remembers which downstream task it opened. Lose either and the caller's
+# resume has nowhere to go.
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          env:
+            - name: TASK_STORE_URI
+              value: sqlite+aiosqlite:////data/tasks.db
+            - name: SESSION_SERVICE_URI
+              value: sqlite+aiosqlite:////data/sessions.db
+          volumeMounts:
+            - name: state
+              mountPath: /data
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: ops-concierge-state

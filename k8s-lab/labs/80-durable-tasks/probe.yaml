@@ -1,0 +1,58 @@
+# The production labs (80-83) drive the agents from INSIDE the cluster, from
+# this pod. Two reasons:
+#
+#  1. It survives the pod deletions the labs are about. A port-forward to an
+#     agent dies with the pod it was bound to; this pod does not care.
+#  2. It talks to the agents the way another agent would: by Service DNS,
+#     east-west, through the mesh, with its own identity (the a2a-probe
+#     service account) rather than borrowing an agent's.
+#
+# It runs the same image as the agents (the probes ship in it, under scripts/)
+# and just sleeps; every exercise is a `kubectl exec`:
+#
+#   kubectl -n agents exec a2a-probe -- python scripts/a2a_prod_probe.py pause
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: a2a-probe
+  namespace: agents
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: a2a-probe
+  namespace: agents
+  labels:
+    app: a2a-probe
+spec:
+  serviceAccountName: a2a-probe
+  restartPolicy: Always
+  containers:
+    - name: probe
+      image: adk-a2a-agent:dev
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      env:
+        - name: A2A_ENTRY_URL
+          value: http://ops-concierge.agents.svc.cluster.local:8000/a2a/ops_concierge
+        - name: A2A_SPECIALIST_URL
+          value: http://deployment-agent.agents.svc.cluster.local:8001/a2a/deployment_agent
+        - name: STS_URL
+          value: http://sts.agents.svc.cluster.local:8010
+        # Where `pause` remembers the task it parked, for `resume` and `cancel`.
+        - name: A2A_PROBE_STATE
+          value: /tmp/a2a-probe-state.json
+      resources:
+        requests: {cpu: 10m, memory: 96Mi}
+        limits: {memory: 256Mi}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: ["ALL"]}
+      volumeMounts:
+        - {name: tmp, mountPath: /tmp}
+  volumes:
+    - name: tmp
+      emptyDir: {}

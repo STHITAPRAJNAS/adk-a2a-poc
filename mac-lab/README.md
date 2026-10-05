@@ -77,6 +77,10 @@ them in order the first time — they build on each other's cluster state.
 | 55 | [OPA authz](labs/55-opa-authz/) | Policy-as-code at the gateway *and* inside the agents' tool calls | Ingress ext_authz + OPA-gated tool execution |
 | 60 | [agentgateway](labs/60-agentgateway/) | A gateway that understands A2A itself — not just HTTP | A2A ingress with per-agent policy and A2A-aware logs |
 | 70 | [Agent Router](labs/70-agent-router/) | The *other* direction: governing the agents' own LLM egress (needs a Gemini key) | Gemini traffic routed, keyed and observable |
+| 80 | [Durable tasks](labs/80-durable-tasks/) | Kill the pod while a human decides: the A2A task store *and* the ADK session store | A paused release that survives its pod being deleted |
+| 81 | [Cancel propagation](labs/81-cancel-propagation/) | Each hop owns its own task, so a cancel has to be forwarded — and holds released | CancelTask that reaches the specialist and voids its ticket |
+| 82 | [Delegated identity](labs/82-delegated-identity/) | Whose request is this? Audience, RFC 8693 token exchange, `act`, scopes that only shrink | The specialist deciding about *Alice*, via the concierge |
+| 83 | [Tracing](labs/83-tracing/) | Exporting spans is not enough: carry `traceparent` across the hop | One Jaeger trace spanning both agents |
 
 Supporting reading, useful at any point:
 

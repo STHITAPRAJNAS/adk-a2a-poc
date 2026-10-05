@@ -355,6 +355,36 @@ on macOS and point the agents at `host.docker.internal:11434`.)
 
 ---
 
+## Phase 9 — production hardening  ·  ~45 min
+
+Four things that work in a demo and break in production, each shown failing
+first and then fixed. They need this repo's newer code in the image, and a probe
+pod that drives the agents from inside the cluster (it survives the pod
+deletions lab 80 causes):
+
+```bash
+make image
+kubectl -n agents rollout restart deploy/ops-concierge deploy/deployment-agent
+kubectl -n agents rollout status deploy/deployment-agent
+make probe
+alias probe='kubectl -n agents exec a2a-probe -- python scripts/a2a_prod_probe.py'
+```
+
+| Lab | Break it | Fix it | Gate |
+|---|---|---|---|
+| [80](labs/80-durable-tasks/) | `probe pause`, delete the specialist pod, `probe resume` | persist the task store **and** the session store | `./scripts/verify-80-durable.sh` |
+| [81](labs/81-cancel-propagation/) | `probe pause`, `probe cancel`: downstream orphaned | `CANCEL_PROPAGATION=1` | `./scripts/verify-81-cancel.sh` |
+| [82](labs/82-delegated-identity/) | forward the user's token: rejected on audience | token exchange at the lab STS | `./scripts/verify-82-identity.sh` |
+| [83](labs/83-tracing/) | export spans: two unrelated traces | `TRACE_PROPAGATION=1` | `./scripts/verify-83-tracing.sh` |
+
+Do them in order: 82 closes the agents to callers without a token, which the
+earlier north-south labs do not send, so its README ends with the undo. Each
+gate script skips itself (exit 0) until its lab is applied, so `make verify`
+stays usable. `make reset-agents` puts both agents back exactly as the chart
+renders them.
+
+---
+
 ## Stopping and restarting
 
 The cluster is kind (Docker containers), not real EKS, so stopping it does **not**

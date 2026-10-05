@@ -1,0 +1,71 @@
+# The lab token service (servers/sts_server.py): a stand-in for your identity
+# provider's login, plus RFC 8693 token exchange. Same image as the agents.
+#
+# Its client registry comes from the sts-clients Secret, which the README
+# creates with a freshly generated secret. Nothing secret lives in this file.
+#
+#   kubectl apply -f labs/82-delegated-identity/sts.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sts
+  namespace: agents
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sts
+  namespace: agents
+  labels: {app: sts}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: sts}
+  template:
+    metadata:
+      labels: {app: sts}
+    spec:
+      serviceAccountName: sts
+      containers:
+        - name: sts
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          args: ["servers.sts_server"]
+          ports:
+            - {name: http, containerPort: 8010}
+          env:
+            - {name: STS_HOST, value: "0.0.0.0"}
+            - {name: STS_PORT, value: "8010"}
+            # The issuer every token carries, and the URL verifiers fetch the
+            # JWKS from. Must be the in-cluster name both agents use.
+            - {name: STS_URL, value: "http://sts.agents.svc.cluster.local:8010"}
+            - name: STS_CLIENTS
+              valueFrom:
+                secretKeyRef: {name: sts-clients, key: clients}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 10m, memory: 96Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sts
+  namespace: agents
+spec:
+  selector: {app: sts}
+  ports:
+    - {name: http, port: 8010, targetPort: http}

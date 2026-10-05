@@ -14,6 +14,12 @@ dependencies = [
     "python-dotenv>=1.0",
     "uvicorn>=0.30",
     "httpx>=0.27",
+    # Production labs (k8s-lab/labs/80-83). All arrive transitively today, but
+    # through unrelated extras, so they are named here on purpose:
+    "PyJWT[crypto]>=2.8",                         # lab 82: token verify/exchange
+    "aiosqlite>=0.20",                            # lab 80: sqlite task/session store
+    "sqlalchemy>=2.0",                            # lab 80: DatabaseTaskStore
+    "opentelemetry-exporter-otlp-proto-http>=1.30",  # lab 83: OTLP export
 ]
 
 [project.optional-dependencies]

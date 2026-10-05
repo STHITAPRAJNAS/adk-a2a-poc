@@ -7,7 +7,7 @@ export KUBECONFIG = $(KUBECONFIG_PATH)
 include versions.env
 export
 
-.PHONY: help doctor versions runbook cluster cluster-down image agents gpu gpu-sim place istio gateway a2a-gw \
+.PHONY: reset-agents probe help doctor versions runbook cluster cluster-down image agents gpu gpu-sim place istio gateway a2a-gw \
         verify compare registry-up registry-down clean
 
 runbook:  ## The step-by-step, start to finish
@@ -44,6 +44,16 @@ agents:  ## Lab 20 — install both agents
 	  -f ./charts/adk-agent/values-specialist.yaml --wait
 	helm upgrade --install ops-concierge ./charts/adk-agent -n agents \
 	  -f ./charts/adk-agent/values-concierge.yaml --wait
+
+reset-agents:  ## Labs 80-83 — put both agents back exactly as the chart renders them
+	kubectl -n agents delete deploy ops-concierge deployment-agent --ignore-not-found
+	$(MAKE) agents
+
+probe:  ## Labs 80-83 — start the in-cluster probe pod
+	kubectl apply -f labs/80-durable-tasks/probe.yaml
+	kubectl -n agents wait --for=condition=Ready pod/a2a-probe --timeout=120s
+	-kubectl get crd authorizationpolicies.security.istio.io >/dev/null 2>&1 && \
+	  kubectl apply -f labs/80-durable-tasks/probe-mesh-allow.yaml
 
 gpu:  ## Lab 30 — configure the GPU node's runtime and install the device plugin
 	./scripts/setup-gpu-node.sh

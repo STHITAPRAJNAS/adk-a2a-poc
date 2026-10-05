@@ -12,6 +12,7 @@ file between them:
     cancel   CancelTask the saved front-door task, then ask the specialist what
              became of the downstream task it had opened
     task     GetTask on any agent, by id
+    tickets  list the specialist's approval tickets (its /ops surface, not A2A)
     login    get a user token from the lab token service (identity exercise)
 
 Usage (local stack from ``./scripts/run_all.sh``):
@@ -100,6 +101,12 @@ def _print_turn(turn: TurnResult, label: str) -> None:
         print(_c(CYAN, f"   downstream task  {', '.join(sorted(turn.downstream_task_ids))}"))
     for name, payload in turn.tool_responses.items():
         print(_c(DIM, f"   tool result      {name}: {json.dumps(payload, default=str)[:140]}"))
+    requested_by = turn.tool_responses.get(HITL_TOOL, {}).get("requested_by")
+    if requested_by:
+        print(
+            _c(CYAN, f"   requested by     {requested_by}")
+            + _c(DIM, "   ← from the verified token")
+        )
     for text in turn.texts:
         print(f"   agent says       {text[:200]}")
     for call in turn.pending_calls:
@@ -227,6 +234,15 @@ async def cmd_resume(args: argparse.Namespace) -> int:
 
     final = turn.final_state
     nxt = turn.pending
+    refused = turn.tool_responses.get(JOB_TOOL, {})
+    if refused.get("error") == "denied_by_policy":
+        # Lab 55's tools policy (if still on) forbids production deploys. The
+        # resume itself landed: the agent got past the gate to the next step.
+        print(
+            _c(GREEN, "\n✓ the gate was answered and the release moved on — to start_deployment,")
+        )
+        print(_c(DIM, f"  which policy then refused: {refused.get('message')}"))
+        return 0
     if nxt is not None and nxt.name == JOB_TOOL:
         job = turn.tool_responses.get(JOB_TOOL, {}).get("job_id")
         print(
@@ -344,6 +360,29 @@ async def cmd_task(args: argparse.Namespace) -> int:
     return 0
 
 
+# ------------------------------------------------------------------------- tickets
+
+
+async def cmd_tickets(args: argparse.Namespace) -> int:
+    """Lists approval tickets from the specialist's /ops surface (not A2A)."""
+    base = args.specialist.split("/a2a/", 1)[0]
+    async with httpx.AsyncClient(timeout=10.0) as http:
+        resp = await http.get(f"{base}/ops/approvals")
+    if resp.status_code != 200:
+        print(_c(RED, f"GET {base}/ops/approvals → HTTP {resp.status_code}"))
+        return 1
+    tickets = resp.json().get("tickets", [])
+    if not tickets:
+        print(_c(DIM, "no tickets (this registry is in memory: a restart empties it)"))
+    for t in tickets:
+        colour = {"pending": YELLOW, "voided": DIM, "approved": GREEN, "rejected": RED}.get(
+            t["state"], ""
+        )
+        who = f"  requested by {t['requested_by']}" if t.get("requested_by") else ""
+        print(_c(colour, f"{t['id']}  {t['state']:<8}") + f"  {t['service']} {t['version']}{who}")
+    return 0
+
+
 # --------------------------------------------------------------------------- login
 
 
@@ -389,6 +428,8 @@ def parse_args() -> argparse.Namespace:
     task.add_argument("task_id")
     task.add_argument("--on", choices=["entry", "specialist"], default="entry")
 
+    sub.add_parser("tickets", help="list approval tickets on the specialist")
+
     login = sub.add_parser("login", help="get a user token from the lab token service")
     login.add_argument("--print", action="store_true", help="print the raw token")
     return parser.parse_args()
@@ -401,6 +442,7 @@ async def amain() -> int:
         "resume": cmd_resume,
         "cancel": cmd_cancel,
         "task": cmd_task,
+        "tickets": cmd_tickets,
         "login": cmd_login,
     }
     try:

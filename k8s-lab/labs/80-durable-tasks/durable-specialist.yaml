@@ -1,0 +1,28 @@
+# Step 3 of lab 80 — the whole fix for the specialist: BOTH stores durable.
+#
+#   kubectl -n agents patch deploy deployment-agent --patch-file durable-specialist.yaml
+#
+# TASK_STORE_URI       the A2A task: id, state, history. What GetTask reads.
+# SESSION_SERVICE_URI  the ADK session: the paused invocation itself, including
+#                      the pending function call the approval must answer.
+#
+# On Kubernetes ADK deliberately falls back to IN-MEMORY sessions (it detects
+# KUBERNETES_SERVICE_HOST and refuses to write .adk/ into the image), so the
+# second line is not optional here, even though it would be on a laptop.
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          env:
+            - name: TASK_STORE_URI
+              value: sqlite+aiosqlite:////data/tasks.db
+            - name: SESSION_SERVICE_URI
+              value: sqlite+aiosqlite:////data/sessions.db
+          volumeMounts:
+            - name: state
+              mountPath: /data
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: deployment-agent-state

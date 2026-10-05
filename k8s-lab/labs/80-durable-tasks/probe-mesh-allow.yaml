@@ -1,0 +1,48 @@
+# Only needed if you applied lab 40's authorization policies, which let nothing
+# but the concierge talk to the specialist. The cancel exercise (lab 81) asks
+# the specialist directly what became of its task, so the probe needs a way in.
+#
+# ALLOW policies are additive: this adds one more permitted caller; it does not
+# loosen anything for anyone else. Two shapes, because lab 40 has two layers:
+#
+#   selector   — enforced by ztunnel (L4, identity only)
+#   targetRefs — enforced by the waypoint, if you deployed one (L7, verb + path)
+#
+# Without a waypoint the second policy simply has nothing to attach to.
+#
+#   kubectl apply -f probe-mesh-allow.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: specialist-accepts-lab-probe
+  namespace: agents
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: adk-agent
+      app.kubernetes.io/instance: deployment-agent
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/agents/sa/a2a-probe"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: specialist-a2a-lab-probe
+  namespace: agents
+spec:
+  targetRefs:
+    - kind: Service
+      group: ""
+      name: deployment-agent
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/agents/sa/a2a-probe"]
+      to:
+        - operation:
+            methods: ["POST"]
+            paths: ["/a2a/deployment_agent"]

@@ -1,0 +1,28 @@
+# Somewhere for each agent's state to outlive its pod.
+#
+# kind ships a default StorageClass (rancher local-path): a directory on the
+# node, bound when the first pod using the claim is scheduled. ReadWriteOnce is
+# enough — the replacement pod lands on the same node, because the volume has
+# node affinity — and it is also why this is ONE replica's state. Lab 80's
+# README covers what changes for real replicas (a shared database).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: deployment-agent-state
+  namespace: agents
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 256Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ops-concierge-state
+  namespace: agents
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 256Mi

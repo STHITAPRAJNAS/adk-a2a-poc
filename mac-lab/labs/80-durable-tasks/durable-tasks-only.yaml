@@ -1,0 +1,20 @@
+# Step 2 of lab 80 — the HALF fix. Persist the A2A task store and nothing else.
+#
+#   kubectl -n agents patch deploy deployment-agent --patch-file durable-tasks-only.yaml
+#
+# The task will now survive a restart. Watch what happens to the resume anyway.
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          env:
+            - name: TASK_STORE_URI
+              value: sqlite+aiosqlite:////data/tasks.db
+          volumeMounts:
+            - name: state
+              mountPath: /data
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: deployment-agent-state

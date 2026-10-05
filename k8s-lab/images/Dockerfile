@@ -28,12 +28,19 @@ RUN pip install --no-cache-dir \
         "a2a-sdk==1.1.2" \
         "python-dotenv>=1.0" \
         "uvicorn>=0.30" \
-        "httpx>=0.27"
+        "httpx>=0.27" \
+        "PyJWT[crypto]>=2.8" \
+        "aiosqlite>=0.20" \
+        "sqlalchemy>=2.0" \
+        "opentelemetry-exporter-otlp-proto-http>=1.30"
 
 COPY common/         ./common/
 COPY agents/         ./agents/
 COPY remote_agents/  ./remote_agents/
 COPY servers/        ./servers/
+# The probes ride along so the production labs (80-83) can drive the agents
+# from a pod inside the cluster, which survives the pod deletions they cause.
+COPY scripts/        ./scripts/
 
 # Non-root. Istio ambient does not require it the way sidecar injection could,
 # but a container that never needed root should never have it.
