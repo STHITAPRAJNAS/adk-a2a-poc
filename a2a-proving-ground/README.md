@@ -1,7 +1,7 @@
 # A2A Proving Ground
 
 An interactive website for learning the **Agent2Agent (A2A) protocol, specification 1.0**, by
-driving it. Sixteen lessons, each with the spec's rules in plain language, an animated lab you
+driving it. Twenty-two lessons in seven tracks, each with the spec's rules in plain language, an animated lab you
 operate, a **wire inspector** that shows the exact HTTP start line, headers and JSON body of every
 exchange, and a short quiz.
 
@@ -80,17 +80,23 @@ makes both work.
 | Discovery & trust | Finding an agent | Well-known URI vs registry vs direct config; `supportedInterfaces` selection rule; ETag / `If-None-Match` / 304 caching |
 | | Trusting a card | **Real ES256 signing in the browser** with JCS canonicalization; tamper, reformat, and attacker re-sign tests; `GetExtendedAgentCard` (-32004 / -32007 / 401) |
 | Conversation | Skills are a menu, not an API | Plain-words requests routed to skills inside the agent; why there is no `skillId` |
-| | Messages, Parts and Artifacts | Part builder (text / data / url / raw, file upload), `ContentTypeNotSupportedError`; Message-vs-Artifact sorter; chunked `artifactUpdate` |
-| | The life of a task | Clickable state machine with all eight states, terminal immutability errors, refinement via `referenceTaskIds`; message-only vs task-generating vs hybrid agents |
-| | Polling, streaming, push | A race of all three on one job: wasted polls, a dropped stream re-attached with `SubscribeToTask`, an authenticated webhook |
+| | Messages, Parts and Artifacts | Part builder (text / data / url / raw, file upload), `ContentTypeNotSupportedError`; Message-vs-Artifact sorter; chunked `artifactUpdate`; **content negotiation** with `acceptedOutputModes` |
+| | The life of a task | Clickable state machine with all eight states, terminal immutability errors, refinement via `referenceTaskIds`; message-only vs task-generating vs hybrid agents; **`historyLength` and `ListTasks`** filters, pagination, `includeArtifacts` |
+| | Polling, streaming, push | A race of all three on one job: wasted polls, a dropped stream re-attached with `SubscribeToTask`, an authenticated webhook; **safe retries** after a lost response (`messageId`, look before resending) |
 | Security | Authentication | Seven schemes animated end to end (API key, Bearer, OAuth2 client credentials, authorization code + **real PKCE**, device code, OIDC, mTLS); 401 vs 403 tester; token-in-payload anti-pattern |
 | | Authorization and in-task auth | Tenant scoping (`ListTasks`, TaskNotFound instead of 403); scope-gated skills; a chained `AUTH_REQUIRED` flow; webhook SSRF guard |
 | Infrastructure | One protocol, three bindings | Any operation rendered for JSON-RPC, gRPC and HTTP+JSON; `A2A-Version` negotiation and `VersionNotSupportedError`; error decoder |
 | | Proxies and gateways | L4 mesh vs HTTP proxy vs A2A-aware gateway: what each sees, logs and can enforce; idle timeouts and buffering vs SSE; replicas and the task store; rewriting the card URL |
-| | Extensions | Declare / activate (`A2A-Extensions`) / metadata by URI; `ExtensionSupportRequiredError`; version mismatch |
+| | Extensions | Declare / activate (`A2A-Extensions`) / metadata by URI; `ExtensionSupportRequiredError`; version mismatch; a real one: AP2 mandates |
 | | A2A and MCP | Sorting game and a layered animation |
+| Agents in production | Surviving a restart | Kill the pod while a human decides: in-memory vs durable **task store** and **session store**, the "completed but wrong" trap; sort what must survive and who owns it |
+| | Cancel across hops | Orphaned downstream task vs propagated cancel; the dropped-status bug when the order is wrong |
+| | Fan-out and fan-in | Three parallel children: all / quorum / best-effort, deadlines in metadata, cancelling the losers, a child that needs input |
+| | Identity across hops | No token vs forwarding the user's token vs **RFC 8693 exchange**; audience check on/off and a replay attacker; be the token service (`invalid_client` / `invalid_grant` / `invalid_target` / `invalid_scope`) |
+| | One trace across agents | Animated trace waterfall with propagation off (two traces) and on (one); a working `traceparent` decoder and forwarder |
+| | Remote agents are untrusted input | Prompt injection, false success, bad payloads vs layered defences (data not instructions, validation, policy, out-of-band checks, humans) |
 | Mastery | The proving ground | A full production deploy end to end with **eight injectable faults**, two of which a good client self-heals |
-| | Final checkpoint | Twelve questions across every track, progress table, cheat sheet |
+| | Final checkpoint | Sixteen questions across every track, progress table, cheat sheet |
 
 Colour means the same thing everywhere: **cobalt** client agent, **spruce** remote agent,
 **amber** gateway / proxy, **plum** authorization server, **teal** registry or store. Task states

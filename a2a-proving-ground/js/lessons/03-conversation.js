@@ -3,6 +3,7 @@
 (function () {
   "use strict";
   const PG = window.PG, h = PG.h, SPEC = PG.SPEC;
+  function setResult(el, tone, html) { el.className = "result " + tone; el.innerHTML = html; }
 
   /* ════════════════════════════════════════════════════════════════════
    * Lesson: Skills
@@ -286,6 +287,38 @@
         cw.add({ kind: "evt", actor: "server", label: "statusUpdate · COMPLETED (stream closes)", status: "done", tone: "ok", sse: [SPEC.statusUpdate(id, ctx, "COMPLETED")] });
         btn.disabled = false;
       });
+
+      /* Lab: content negotiation */
+      const n = PG.lab(bench, "Content negotiation", "Lab · acceptedOutputModes and input media types");
+      const AGENT_IN = ["text/plain", "application/json"];
+      const SKILL_OUT = ["text/markdown", "application/json", "text/plain"];
+      const accModes = { "text/plain": true, "text/markdown": false, "application/json": false, "image/png": false };
+      let inType = "text/plain";
+      const nOut = h("pre", { class: "code" });
+      const nRes = h("div", { class: "result" });
+      function nShow() {
+        const acc = Object.keys(accModes).filter(function (k) { return accModes[k]; });
+        const req = SPEC.rpc("SendMessage", { message: SPEC.msg("user", [inType === "image/png" ? { raw: "iVBORw0KGgo…(PNG bytes)", mediaType: "image/png", filename: "diagram.png" } : inType === "application/json" ? { data: { service: "checkout-api", version: "2.14.0" }, mediaType: "application/json" } : { text: "Release notes for checkout-api 2.14.0, please", mediaType: "text/plain" }]), configuration: { acceptedOutputModes: acc } });
+        if (AGENT_IN.indexOf(inType) < 0) {
+          nOut.innerHTML = PG.jsonHTML(req, ["acceptedOutputModes", "mediaType"]) + "\n\n" + PG.jsonHTML(SPEC.rpcErr("ContentTypeNotSupportedError"), ["code"]);
+          setResult(nRes, "warn", "<b>-32005 ContentTypeNotSupportedError.</b> The <em>input</em> part is <code>image/png</code>, and this agent's <code>defaultInputModes</code> are " + AGENT_IN.join(", ") + ". Clients should read the card's (or the skill's) input modes before sending.");
+          return;
+        }
+        const pick = SKILL_OUT.find(function (m) { return accModes[m]; });
+        const out = pick ? pick : "text/plain";
+        nOut.innerHTML = PG.jsonHTML(req, ["acceptedOutputModes", "mediaType"]) + "\n\n" + PG.jsonHTML({ artifact: { artifactId: "notes", parts: [out === "application/json" ? { data: { highlights: ["…"] }, mediaType: out } : { text: out === "text/markdown" ? "## checkout-api 2.14.0\n- …" : "checkout-api 2.14.0: …", mediaType: out }] } }, ["mediaType"]);
+        setResult(nRes, pick ? "ok" : "warn", pick
+          ? "The skill can produce " + SKILL_OUT.join(", ") + "; the first one you accept is <code>" + pick + "</code>, so that's what comes back. <code>acceptedOutputModes</code> is a SHOULD: agents use it to tailor output."
+          : "No overlap: you accept only image/png, the skill can't draw. The spec says agents SHOULD tailor to <code>acceptedOutputModes</code> and leaves the no-overlap case to the agent; this one answers in text/plain and says so. Robust clients handle a type they didn't ask for.");
+      }
+      n.body.appendChild(h("div", { class: "stack" },
+        h("div", { class: "row" }, h("span", { class: "small muted", text: "You accept:" }), Object.keys(accModes).map(function (k) {
+          return PG.switch("acc-" + k.replace(/\W/g, ""), k, accModes[k], function (v) { accModes[k] = v; nShow(); });
+        })),
+        h("div", { class: "row" }, h("span", { class: "small muted", text: "You send a part of type:" }),
+          PG.seg([{ v: "text/plain", label: "text/plain" }, { v: "application/json", label: "application/json" }, { v: "image/png", label: "image/png" }], inType, function (v) { inType = v; nShow(); }, "Input type")),
+        nRes, nOut));
+      nShow();
     },
     quiz: [
       { q: "How many content fields may a single Part set?",
@@ -486,6 +519,55 @@
         PG.seg([{ v: "message", label: "Message-only" }, { v: "task", label: "Task-generating" }, { v: "hybrid", label: "Hybrid" }], kind, function (v) { kind = v; show(); }, "Agent type"),
         PG.seg([{ v: "hi", label: "“hi, what can you do?”" }, { v: "deploy", label: "“deploy to staging”" }], prompt, function (v) { prompt = v; show(); }, "Prompt")), out);
       show();
+
+      /* Lab: history and listing */
+      const L = PG.lab(bench, "Trimming history and listing tasks", "Lab · historyLength, ListTasks, pagination");
+      const HIST = ["user: deploy checkout-api 2.14.0", "agent: checking readiness", "agent: compliance scan running", "agent: scan passed", "agent: waiting on approval CHG-1", "user: approved", "agent: job-5dd9 running"];
+      const TASKS = [
+        ["task-01", "ctx-a", "COMPLETED"], ["task-02", "ctx-a", "INPUT_REQUIRED"], ["task-03", "ctx-b", "WORKING"], ["task-04", "ctx-a", "COMPLETED"],
+        ["task-05", "ctx-b", "FAILED"], ["task-06", "ctx-a", "WORKING"], ["task-07", "ctx-c", "INPUT_REQUIRED"], ["task-08", "ctx-a", "CANCELED"],
+      ];
+      const lc = { hl: "unset", ctx: "", status: "", size: 3, page: 0, arts: false };
+      const lOut = h("pre", { class: "code" });
+      const lNote = h("div", { class: "small muted" });
+      function histFor(n) { const all = HIST.map(function (t, i) { const p = t.split(": "); return SPEC.msg(p[0] === "user" ? "user" : "agent", [p[1]], { messageId: "m" + (i + 1) }); }); return n === "unset" ? all : all.slice(all.length - Number(n)); }
+      function lShowGet() {
+        const params = { id: "task-02" };
+        if (lc.hl !== "unset") params.historyLength = Number(lc.hl);
+        const t = SPEC.task("task-02", "ctx-a", "INPUT_REQUIRED", { history: histFor(lc.hl) });
+        if (lc.hl === "0") delete t.history;
+        lOut.innerHTML = PG.jsonHTML(SPEC.rpc("GetTask", params), ["historyLength"]) + "\n\n" + PG.jsonHTML({ jsonrpc: "2.0", id: 1, result: t }, ["history"]);
+        lNote.innerHTML = lc.hl === "unset" ? "Unset: the client imposes no limit (the server may still cap it)." : lc.hl === "0" ? "0: a request for <em>no</em> messages." : "The " + lc.hl + " most recent messages. The server MUST NOT return more, MAY return fewer.";
+      }
+      function lShowList() {
+        let rows = TASKS.filter(function (t) { return (!lc.ctx || t[1] === lc.ctx) && (!lc.status || t[2] === lc.status); });
+        const total = rows.length, from = lc.page * lc.size;
+        const page = rows.slice(from, from + lc.size);
+        const params = { pageSize: lc.size };
+        if (lc.ctx) params.contextId = lc.ctx;
+        if (lc.status) params.status = "TASK_STATE_" + lc.status;
+        if (lc.page) params.pageToken = "pt-" + from;
+        if (lc.arts) params.includeArtifacts = true;
+        const tasks = page.map(function (t) { const o = SPEC.task(t[0], t[1], t[2]); if (lc.arts) o.artifacts = t[2] === "COMPLETED" ? [{ artifactId: "report" }] : []; return o; });
+        const next = from + lc.size < total ? "pt-" + (from + lc.size) : "";
+        lOut.innerHTML = PG.jsonHTML(SPEC.rpc("ListTasks", params), ["pageToken", "pageSize", "contextId", "status"]) + "\n\n" + PG.jsonHTML({ jsonrpc: "2.0", id: 1, result: { tasks: tasks, nextPageToken: next, pageSize: lc.size, totalSize: total } }, ["nextPageToken", "totalSize"]);
+        lNote.innerHTML = (next ? "More results: pass <code>nextPageToken</code> as <code>pageToken</code>." : "Last page: <code>nextPageToken</code> is empty.") + " Without <code>includeArtifacts</code> the artifacts field is omitted entirely. pageSize defaults to 50, max 100.";
+        nextBtn.disabled = !next;
+      }
+      let lMode = "get";
+      function lShow() { lMode === "get" ? lShowGet() : lShowList(); getCtl.hidden = lMode !== "get"; listCtl.hidden = lMode !== "list"; }
+      const nextBtn = h("button", { class: "btn small", type: "button", text: "Next page →", onclick: function () { lc.page++; lShow(); } });
+      const getCtl = h("div", { class: "row" }, h("span", { class: "small muted", text: "historyLength:" }),
+        PG.seg([{ v: "unset", label: "unset" }, { v: "0", label: "0" }, { v: "2", label: "2" }, { v: "5", label: "5" }], lc.hl, function (v) { lc.hl = v; lShow(); }, "historyLength"));
+      const listCtl = h("div", { class: "stack" },
+        h("div", { class: "row" }, h("span", { class: "small muted", text: "contextId:" }), PG.seg([{ v: "", label: "any" }, { v: "ctx-a", label: "ctx-a" }, { v: "ctx-b", label: "ctx-b" }], lc.ctx, function (v) { lc.ctx = v; lc.page = 0; lShow(); }, "contextId"),
+          h("span", { class: "small muted", text: "status:" }), PG.seg([{ v: "", label: "any" }, { v: "WORKING", label: "WORKING" }, { v: "INPUT_REQUIRED", label: "INPUT_REQUIRED" }, { v: "COMPLETED", label: "COMPLETED" }], lc.status, function (v) { lc.status = v; lc.page = 0; lShow(); }, "status")),
+        h("div", { class: "row" }, h("span", { class: "small muted", text: "pageSize:" }), PG.seg([{ v: 2, label: "2" }, { v: 3, label: "3" }, { v: 5, label: "5" }], lc.size, function (v) { lc.size = Number(v); lc.page = 0; lShow(); }, "pageSize"),
+          PG.switch("list-arts", "includeArtifacts", lc.arts, function (v) { lc.arts = v; lShow(); }), nextBtn));
+      L.body.appendChild(h("div", { class: "stack" },
+        PG.seg([{ v: "get", label: "GetTask" }, { v: "list", label: "ListTasks" }], lMode, function (v) { lMode = v; lShow(); }, "Operation"),
+        getCtl, listCtl, lNote, lOut));
+      lShow();
     },
     quiz: [
       { q: "A task is INPUT_REQUIRED. How does the client answer it?",
@@ -636,6 +718,49 @@
         });
         start.disabled = false;
       });
+
+      /* Lab: retries after a dropped connection */
+      const R = PG.lab(bench, "The connection dropped mid-SendMessage", "Lab · safe retries");
+      const rc = { how: "new", dedupe: false };
+      const rStage = PG.stage(R.body, { size: "short", actors: [
+        { id: "c", role: "client", label: "Client", sub: "timed out after 30 s", x: 14, y: 42 },
+        { id: "a", role: "server", label: "Release agent", sub: "did it get the first one?", x: 84, y: 42 }], links: [["c", "a"]] });
+      const rRes = h("div", { class: "result", text: "The first request reached the agent and started a deployment; the response was lost. Pick how the client retries." });
+      const rWire = PG.wire(R.body, { title: "Wire" });
+      const rGo = h("button", { class: "btn primary", type: "button", text: "Send, lose the response, retry", onclick: rRun });
+      R.body.insertBefore(h("div", { class: "stack" },
+        h("div", { class: "row" }, PG.seg([{ v: "new", label: "resend, new messageId" }, { v: "same", label: "resend, same messageId" }, { v: "check", label: "look before resending" }], rc.how, function (v) { rc.how = v; }, "Retry strategy")),
+        h("div", { class: "row" }, PG.switch("dedupe", "Agent detects duplicate messageIds (optional: spec §3.3.1 MAY)", rc.dedupe, function (v) { rc.dedupe = v; }), rGo)), rStage.el);
+      R.body.insertBefore(rRes, rWire.el);
+      async function rRun() {
+        rGo.disabled = true; rWire.clear(); rStage.badge("a", null); rStage.badge("c", null);
+        const m1 = SPEC.msg("user", ["Deploy checkout-api 2.14.0 to staging"], { contextId: "ctx-77" });
+        rWire.add({ actor: "client", label: "SendMessage · messageId=" + m1.messageId, body: SPEC.rpc("SendMessage", { message: m1 }) });
+        await rStage.send("c", "a", "SendMessage");
+        rStage.badge("a", h("span", { class: "chip", text: "task-1 · deploying" }));
+        await rStage.send("a", "c", "…lost", { tone: "err" });
+        rWire.add({ kind: "note", actor: "client", label: "No response: timeout. Did task-1 start? The client can't tell." });
+        if (rc.how === "check") {
+          rWire.add({ actor: "client", label: "ListTasks · contextId=ctx-77", body: SPEC.rpc("ListTasks", { contextId: "ctx-77", pageSize: 10 }) });
+          await rStage.send("c", "a", "ListTasks ctx-77");
+          await rStage.send("a", "c", "task-1 WORKING");
+          rWire.add({ kind: "in", actor: "server", label: "task-1 exists, WORKING → subscribe instead of resending", status: "200", body: { jsonrpc: "2.0", id: 2, result: { tasks: [SPEC.task("task-1", "ctx-77", "WORKING")], nextPageToken: "", pageSize: 10, totalSize: 1 } } });
+          setResult(rRes, "ok", "<b>✓ One deployment.</b> The client looked first: the task existed, so it followed it (<code>SubscribeToTask</code> / <code>GetTask</code>) instead of starting another. Sending a known <code>contextId</code>, or <code>returnImmediately: true</code> to learn the task id early, makes this possible.");
+        } else {
+          const m2 = rc.how === "same" ? Object.assign({}, m1) : SPEC.msg("user", ["Deploy checkout-api 2.14.0 to staging"], { contextId: "ctx-77" });
+          rWire.add({ actor: "client", label: "retry · SendMessage · messageId=" + m2.messageId, body: SPEC.rpc("SendMessage", { message: m2 }), hl: ["messageId"] });
+          await rStage.send("c", "a", "SendMessage (retry)");
+          if (rc.how === "same" && rc.dedupe) {
+            await rStage.send("a", "c", "task-1 (dup)");
+            setResult(rRes, "ok", "<b>✓ Deduplicated.</b> Same messageId, and this agent remembers it: it returns task-1 instead of starting another. But dedupe is a <em>MAY</em>; don't rely on it with an agent you don't control.");
+          } else {
+            rStage.badge("a", h("span", { class: "chip err", text: "task-1 + task-2 deploying" }));
+            await rStage.send("a", "c", "task-2", { tone: "err" });
+            setResult(rRes, "warn", "<b>✗ Two deployments.</b> " + (rc.how === "same" ? "Reusing the messageId was right, but this agent doesn't deduplicate (the spec only says it MAY)." : "A new messageId looks like a new request to every agent.") + " SendMessage is not guaranteed idempotent; check before you resend.");
+          }
+        }
+        rGo.disabled = false;
+      }
     },
     quiz: [
       { q: "You call SendMessage with no configuration. When does it return?",

@@ -9,6 +9,7 @@
   PG.track("conversation", "Conversation", "Skills, messages, tasks and the three ways results come back.");
   PG.track("security", "Security", "Authentication, authorization, and asking for credentials mid-task.");
   PG.track("infrastructure", "Infrastructure", "Bindings, versions, gateways and extensions: what sits between two agents.");
+  PG.track("production", "Agents in production", "What breaks once agents call agents for real: restarts, cancels, fan-out, identity, tracing and untrusted replies.");
   PG.track("mastery", "Mastery", "Put it together, then prove it.");
 
   /* ════════════════════════════════════════════════════════════════════

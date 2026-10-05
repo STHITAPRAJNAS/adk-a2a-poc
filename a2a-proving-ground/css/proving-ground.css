@@ -848,3 +848,28 @@ table.tbl tr:last-child td { border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* ── production track: trace waterfall, growing lane bars ─────────────── */
+.result.info { background: var(--info-bg); border-color: color-mix(in srgb, var(--info) 35%, transparent); color: var(--ink); }
+.lane-track .span.grow { transition-property: width; }
+.wf { border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--panel); padding: 8px 10px; display: grid; gap: 3px; }
+.wf-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-bottom: 4px; font-size: 13px; }
+.wf-row { display: grid; grid-template-columns: minmax(150px, 38%) 1fr 64px; gap: 8px; align-items: center; font-size: 12px; }
+.wf-name { display: flex; gap: 6px; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-mono); }
+.wf-name span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.wf-svc { flex: none; width: 8px; height: 8px; border-radius: 2px; }
+.wf-track { position: relative; height: 14px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+.wf-bar { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; min-width: 2px; }
+.wf-dur { text-align: right; color: var(--muted); }
+@media (max-width: 640px) {
+  .wf-row { grid-template-columns: 1fr 48px; }
+  .wf-row .wf-track { grid-column: 1 / -1; grid-row: 2; }
+}
+/* Grid items default to min-width:auto, so one long unbreakable line in a
+ * <pre> widened the whole lab column past a phone screen. Let them shrink;
+ * the <pre> scrolls on its own. */
+.lab-body > *, .wire-detail > *, .stack > *, .lane > *, .wf > * { min-width: 0; }
+.brief > * { min-width: 0; }
+.brief code, .small.mono, .wf-head .mono { overflow-wrap: anywhere; }
+.brief code { white-space: normal; }
+.brief ol > *, .brief ul > *, .brief dl > * { min-width: 0; overflow-wrap: anywhere; }

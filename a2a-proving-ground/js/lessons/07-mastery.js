@@ -1,4 +1,4 @@
-/* Track 6 — Mastery: the end-to-end proving ground, and the final exam. */
+/* Track 7 — Mastery: the end-to-end proving ground, and the final exam. */
 (function () {
   "use strict";
   const PG = window.PG, h = PG.h, SPEC = PG.SPEC;
@@ -287,7 +287,7 @@
     track: "mastery",
     title: "Final checkpoint",
     short: "Final checkpoint",
-    thesis: "Twelve questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
+    thesis: "Sixteen questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
     refs: "All lessons",
     brief: `
       <p>Take it cold. If you miss one, read the explanation, revisit the lesson, and come back.</p>
@@ -354,6 +354,18 @@
       { q: "What does canonicalization (JCS) buy card signatures?",
         opts: ["Smaller cards", "Key order and whitespace don't change the signature; values do", "Encryption", "Faster verification"],
         a: 1, why: "Verifiers canonicalize before checking, so only real changes break the signature." },
+      { q: "After a pod restart the task is found but the resume ends COMPLETED with “Function call not found”. What wasn't durable?",
+        opts: ["The task store", "The agent framework's session holding the paused call", "The Agent Card", "The gateway"],
+        a: 1, why: "Two stores back one paused task. Losing the session makes the resume complete with an error as its answer." },
+      { q: "An orchestrator's task is canceled. Under plain A2A, the task it opened on another agent…",
+        opts: ["is canceled too", "keeps running unless the orchestrator forwards CancelTask", "fails", "is deleted"],
+        a: 1, why: "Each hop owns its own task; propagation is the orchestrator's job." },
+      { q: "The concierge needs to call the specialist for Alice. Which token should it send?",
+        opts: ["Alice's own token", "One from an RFC 8693 exchange: sub alice, aud deployment_agent, act ops_concierge", "Its own service token, no user", "None; mTLS is enough"],
+        a: 1, why: "Audience-bound to the next hop, user preserved, actor recorded, scopes never widened." },
+      { q: "Both agents export spans but you see two traces for one request. What's missing?",
+        opts: ["A collector", "traceparent carried across the A2A hop (injected out, extracted in)", "Sampling", "gRPC"],
+        a: 1, why: "Exporting is not propagating: the trace context must cross the hop." },
     ],
   });
 })();
