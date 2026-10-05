@@ -35,13 +35,15 @@ from common.config import (  # noqa: E402
     get_settings,
 )
 from common.jobs import JOBS  # noqa: E402
+from servers import hardening  # noqa: E402
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("servers.remote_agent_server")  # not __name__: "__main__" under -m
 
 
 def build_app() -> Any:
     """Builds the FastAPI app that serves the remote agent over A2A."""
     settings = get_settings()
+    hardening.configure_logging()
     # Suppress ADK's experimental banner unless the operator asked to see it.
     os.environ.setdefault("ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS", "1")
 
@@ -55,6 +57,19 @@ def build_app() -> Any:
         finally:
             await JOBS.aclose()
 
+    async def release_holds(session: Any) -> None:
+        """On a propagated cancel (lab 81): let go of what this task held."""
+        ticket = session.state.get("pending_approval_ticket")
+        if ticket:
+            voided = APPROVALS.void(ticket, note="the A2A task behind this ticket was canceled")
+            if voided is not None and voided.state == "voided":
+                logger.info("cancel: voided approval ticket %s", ticket)
+        job_id = session.state.get("deployment_job_id")
+        if job_id and await JOBS.cancel(job_id):  # False if it already finished
+            logger.info("cancel: stopped deployment job %s", job_id)
+
+    hardening.before_app(settings, release_hooks=[release_holds])
+
     app = get_fast_api_app(
         # ``get_fast_api_app`` resolves the A2A scan as ``Path.cwd() / agents_dir``.
         # An absolute path makes that independent of where the process was started.
@@ -65,7 +80,9 @@ def build_app() -> Any:
         port=settings.remote_agent_port,
         allow_origins=["*"],
         lifespan=lifespan,
+        **hardening.fast_api_kwargs(settings),
     )
+    hardening.after_app(app, settings, agent_name=DEPLOYMENT_AGENT_APP_NAME)
 
     # ---- Non-A2A operator surface ------------------------------------------
     # `start_deployment` is a long-running tool: it returns a job handle and the
@@ -121,6 +138,8 @@ def main() -> None:
     print(f"  Jobs         {base}/ops/jobs")
     if settings.use_fake_llm:
         print("  model        scripted (POC_FAKE_LLM=1) — no Gemini calls")
+    for line in hardening.describe(settings):
+        print(f"  {line}")
     uvicorn.run(
         app,
         host=settings.remote_agent_host,

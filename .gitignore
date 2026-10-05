@@ -13,3 +13,6 @@ logs/
 # ADK's local session/artifact store (use_local_storage defaults to True in
 # get_fast_api_app, and it writes into each agent directory).
 .adk/
+
+# pip install -e metadata
+*.egg-info/

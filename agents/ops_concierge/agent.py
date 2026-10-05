@@ -27,6 +27,8 @@ from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.apps import App, ResumabilityConfig
 
 from common.config import get_settings, resolve_model
+from common.downstream import make_downstream_client
+from common.identity import make_scope_guard
 from common.opa_guard import make_opa_tool_guard
 
 _INSTRUCTION = """\
@@ -102,6 +104,10 @@ def build_remote_deployment_agent() -> TransferableRemoteA2aAgent:
         # Long-running work parks the remote task; a generous read timeout keeps
         # the streaming connection alive across the compliance scan.
         timeout=900.0,
+        # None unless a production lab switched something on: then this client
+        # carries the downstream token (lab 82) and traceparent (lab 83) on
+        # every call. See common.downstream.
+        httpx_client=make_downstream_client("deployment_agent", timeout=900.0),
     )
 
 
@@ -130,7 +136,16 @@ def build_agent() -> LlmAgent:
         sub_agents=[build_remote_deployment_agent()],
         # When OPA_URL is set, every tool call (including transfer_to_agent) is
         # checked against OPA before it runs. None when unset → no-op.
-        before_tool_callback=make_opa_tool_guard("ops_concierge"),
+        # With AGENT_AUTH=jwt (lab 82) delegating at all needs release:request.
+        before_tool_callback=[
+            cb
+            for cb in (
+                make_scope_guard({"transfer_to_agent": "release:request"}),
+                make_opa_tool_guard("ops_concierge"),
+            )
+            if cb is not None
+        ]
+        or None,
     )
 
 

@@ -68,6 +68,31 @@ class Settings:
 
     use_fake_llm: bool
 
+    # --- production hardening (k8s-lab labs 80-83) -------------------------
+    # Every switch below defaults to off, so the plain `make run` path and the
+    # earlier labs behave exactly as before. Each lab turns one on and shows
+    # what changes.
+
+    #: A2A task store. None = in memory, which forgets every task on restart.
+    #: e.g. ``sqlite+aiosqlite:////data/tasks.db`` or ``postgresql+asyncpg://…``
+    task_store_uri: str | None
+    #: ADK session store (where the paused invocation itself lives). None =
+    #: ADK's default local SQLite under ADK_LOCAL_STORAGE_DIR.
+    session_service_uri: str | None
+    #: Forward CancelTask to the downstream task(s) this agent opened.
+    cancel_propagation: bool
+    #: Carry W3C ``traceparent`` across the A2A hop, in and out.
+    trace_propagation: bool
+    #: Inbound auth on the A2A endpoint: ``off`` or ``jwt``.
+    agent_auth: str
+    #: What this agent sends downstream: ``none``, ``passthrough`` (the
+    #: caller's own token — the anti-pattern) or ``exchange`` (RFC 8693).
+    downstream_auth: str
+    #: The lab token service (servers/sts_server.py).
+    sts_url: str
+    sts_client_id: str
+    sts_client_secret: str
+
     @property
     def orchestrator_base_url(self) -> str:
         return f"http://{self.orchestrator_host}:{self.orchestrator_port}"
@@ -158,4 +183,13 @@ def get_settings() -> Settings:
         compliance_scan_seconds=_env_int("COMPLIANCE_SCAN_SECONDS", 12),
         deployment_job_seconds=_env_int("DEPLOYMENT_JOB_SECONDS", 25),
         use_fake_llm=_env_bool("POC_FAKE_LLM", False),
+        task_store_uri=os.environ.get("TASK_STORE_URI", "").strip() or None,
+        session_service_uri=os.environ.get("SESSION_SERVICE_URI", "").strip() or None,
+        cancel_propagation=_env_bool("CANCEL_PROPAGATION", False),
+        trace_propagation=_env_bool("TRACE_PROPAGATION", False),
+        agent_auth=_env("AGENT_AUTH", "off").strip().lower(),
+        downstream_auth=_env("DOWNSTREAM_AUTH", "none").strip().lower(),
+        sts_url=_env("STS_URL", "http://127.0.0.1:8010").rstrip("/"),
+        sts_client_id=_env("STS_CLIENT_ID", ""),
+        sts_client_secret=os.environ.get("STS_CLIENT_SECRET", ""),
     )

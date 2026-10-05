@@ -35,6 +35,7 @@ from common.config import (  # noqa: E402
     ORCHESTRATOR_APP_NAME,
     get_settings,
 )
+from servers import hardening  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,16 @@ logger = logging.getLogger(__name__)
 def build_app() -> Any:
     """Builds the FastAPI app that serves the orchestrator and its Dev UI."""
     settings = get_settings()
+    hardening.configure_logging()
     os.environ.setdefault("ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS", "1")
 
     from google.adk.cli.fast_api import get_fast_api_app
+
+    # On a propagated cancel (lab 81) the concierge forwards CancelTask to the
+    # specialist task it opened; the card says where that agent lives.
+    hardening.before_app(
+        settings, downstream_cards={"deployment_agent": settings.deployment_agent_card_url}
+    )
 
     app = get_fast_api_app(
         agents_dir=str(ORCHESTRATOR_AGENTS_DIR),
@@ -55,7 +63,9 @@ def build_app() -> Any:
         host=settings.orchestrator_host,
         port=settings.orchestrator_port,
         allow_origins=["*"],
+        **hardening.fast_api_kwargs(settings),
     )
+    hardening.after_app(app, settings, agent_name=ORCHESTRATOR_APP_NAME)
 
     @app.get("/ops/wiring", tags=["ops"])
     async def wiring() -> dict[str, Any]:
@@ -94,6 +104,8 @@ def main() -> None:
     print(f"  Remote  {settings.deployment_agent_card_url}")
     if settings.use_fake_llm:
         print("  model   scripted (POC_FAKE_LLM=1) — no Gemini calls")
+    for line in hardening.describe(settings):
+        print(f"  {line}")
     uvicorn.run(
         app,
         host=settings.orchestrator_host,

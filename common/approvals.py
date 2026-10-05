@@ -13,7 +13,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-ApprovalState = Literal["pending", "approved", "rejected"]
+ApprovalState = Literal["pending", "approved", "rejected", "voided"]
 
 
 @dataclass
@@ -27,6 +27,9 @@ class ApprovalTicket:
     state: ApprovalState = "pending"
     decided_by: str | None = None
     decision_note: str | None = None
+    #: Who asked for the change, as the verified principal saw it (lab 82):
+    #: "alice via ops_concierge". None when the A2A endpoint is unauthenticated.
+    requested_by: str | None = None
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
@@ -45,6 +48,7 @@ class ApprovalRegistry:
         environment: str,
         summary: str,
         risk: str,
+        requested_by: str | None = None,
     ) -> ApprovalTicket:
         ticket = ApprovalTicket(
             id=f"CHG-{uuid.uuid4().hex[:8].upper()}",
@@ -53,6 +57,7 @@ class ApprovalRegistry:
             environment=environment,
             summary=summary,
             risk=risk,
+            requested_by=requested_by,
         )
         self._tickets[ticket.id] = ticket
         return ticket
@@ -70,6 +75,20 @@ class ApprovalRegistry:
             return None
         ticket.state = "approved" if approved else "rejected"
         ticket.decided_by = decided_by
+        ticket.decision_note = note
+        return ticket
+
+    def void(self, ticket_id: str, *, note: str) -> ApprovalTicket | None:
+        """Withdraws a pending ticket because the task behind it is gone.
+
+        A decided ticket is history and is left alone. A pending one would
+        otherwise sit in an approver's queue asking for a decision nobody is
+        waiting for — the human cost of an orphaned task.
+        """
+        ticket = self._tickets.get(ticket_id)
+        if ticket is None or ticket.state != "pending":
+            return ticket
+        ticket.state = "voided"
         ticket.decision_note = note
         return ticket
 

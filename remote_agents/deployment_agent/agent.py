@@ -17,6 +17,7 @@ from google.adk.agents import LlmAgent
 from google.adk.apps import App, ResumabilityConfig
 
 from common.config import get_settings, resolve_model
+from common.identity import make_scope_guard
 from common.opa_guard import make_opa_tool_guard
 
 from . import tools
@@ -79,7 +80,24 @@ def build_agent() -> LlmAgent:
         # OPA decides, per call, whether each tool (check_release_readiness,
         # run_compliance_scan, request_change_approval, start_deployment) may run
         # with the given args. None when OPA_URL is unset → no-op.
-        before_tool_callback=make_opa_tool_guard("deployment_agent"),
+        #
+        # Ahead of OPA, the scope guard (lab 82): with AGENT_AUTH=jwt, paging an
+        # approver or starting a rollout needs the verified caller to hold
+        # release:deploy. It stands aside when auth is off.
+        before_tool_callback=[
+            cb
+            for cb in (
+                make_scope_guard(
+                    {
+                        "request_change_approval": "release:deploy",
+                        "start_deployment": "release:deploy",
+                    }
+                ),
+                make_opa_tool_guard("deployment_agent"),
+            )
+            if cb is not None
+        ]
+        or None,
     )
 
 

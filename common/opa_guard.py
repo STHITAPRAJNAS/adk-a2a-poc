@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import httpx
+
+from common.identity import current_principal
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +32,19 @@ def make_opa_tool_guard(agent_name: str):
 
     decision_url = f"{opa_url}/v1/data/tools/allow"
 
-    def before_tool_callback(tool, args: dict[str, Any], tool_context) -> Optional[dict]:
-        payload = {"input": {"agent": agent_name, "tool": tool.name, "args": dict(args or {})}}
+    def before_tool_callback(tool, args: dict[str, Any], tool_context) -> dict | None:
+        payload: dict[str, Any] = {
+            "input": {"agent": agent_name, "tool": tool.name, "args": dict(args or {})}
+        }
+        # With AGENT_AUTH=jwt (lab 82) policy can also see *who* asked and who
+        # is acting for them: {subject, actors, scopes}.
+        principal = current_principal()
+        if principal is not None:
+            payload["input"]["principal"] = {
+                "subject": principal.subject,
+                "actors": list(principal.actors),
+                "scopes": list(principal.scopes),
+            }
         try:
             resp = httpx.post(decision_url, json=payload, timeout=5.0)
             resp.raise_for_status()

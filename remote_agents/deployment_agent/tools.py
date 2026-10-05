@@ -30,6 +30,7 @@ from google.adk.tools import LongRunningFunctionTool, ToolContext
 
 from common.approvals import APPROVALS
 from common.config import get_settings
+from common.identity import current_principal
 from common.jobs import JOBS
 
 logger = logging.getLogger(__name__)
@@ -143,18 +144,22 @@ def request_change_approval(
       'awaiting' describing the shape of the expected decision, and the echoed
       change details.
     """
+    # With AGENT_AUTH=jwt the approver sees who really asked, and through whom:
+    # "alice via ops_concierge", read off the verified token's sub and act.
+    principal = current_principal()
     ticket = APPROVALS.open(
         service=service,
         version=version,
         environment=environment,
         summary=summary,
         risk=risk,
+        requested_by=principal.describe() if principal else None,
     )
     # Stash the ticket on session state so the agent (and the Dev UI state tab)
     # can see which gate the conversation is parked on.
     tool_context.state["pending_approval_ticket"] = ticket.id
     logger.info("Opened approval ticket %s for %s@%s", ticket.id, service, version)
-    return {
+    result = {
         "status": "pending_human_approval",
         "ticket_id": ticket.id,
         "service": service,
@@ -168,6 +173,9 @@ def request_change_approval(
             "note": "str - optional rationale",
         },
     }
+    if ticket.requested_by:
+        result["requested_by"] = ticket.requested_by
+    return result
 
 
 def start_deployment(

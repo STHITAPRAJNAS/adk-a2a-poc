@@ -122,6 +122,10 @@ class TurnResult:
     #: agent; one entry per hop for an agent that delegates.
     downstream_task_ids: set[str] = field(default_factory=set)
     error: dict[str, Any] | None = None
+    #: HTTP status of the stream request. A refusal before any A2A processing
+    #: (401 from an auth layer, 403 from a mesh policy) arrives here, not as a
+    #: JSON-RPC error.
+    http_status: int | None = None
 
     @property
     def states(self) -> list[str]:
@@ -225,7 +229,17 @@ class A2AWireClient:
             json=rpc("message/stream", {"message": message}),
             headers={"Accept": "text/event-stream"},
         ) as response:
-            response.raise_for_status()
+            turn.http_status = response.status_code
+            if response.status_code >= 400:
+                raw = (await response.aread()).decode(errors="replace")
+                try:
+                    body: Any = json.loads(raw)
+                except json.JSONDecodeError:
+                    body = raw[:500]
+                turn.error = {"http_status": response.status_code, "body": body}
+                if challenge := response.headers.get("www-authenticate"):
+                    turn.error["www_authenticate"] = challenge
+                return turn
             # A JSON-RPC error arrives as a plain JSON body with HTTP 200, not
             # as an event stream. Without this branch a rejected request reads
             # as a clean run that produced no events.
