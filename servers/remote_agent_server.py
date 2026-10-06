@@ -78,7 +78,10 @@ def build_app() -> Any:
         a2a=True,          # mount the A2A JSON-RPC endpoint + Agent Card
         host=settings.remote_agent_host,
         port=settings.remote_agent_port,
-        allow_origins=["*"],
+        # Was ["*"]: with allow_credentials ADK then echoed ANY origin back, so any
+        # website could call these agents from your browser. Local pages only by
+        # default; CORS_ALLOW_ORIGINS overrides (see common.config).
+        allow_origins=list(settings.cors_allow_origins),
         lifespan=lifespan,
         **hardening.fast_api_kwargs(settings),
     )

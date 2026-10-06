@@ -66,24 +66,35 @@ def before_app(
 
 
 def after_app(app: Any, settings: Settings, *, agent_name: str) -> None:
-    """Middleware on the built app. Added inside-out: auth, then tracing."""
+    """Middleware on the built app, placed INSIDE ADK's CORS middleware.
+
+    ``add_middleware`` would wrap the app outermost, outside CORS, and then a
+    401 from the token check would leave without CORS headers: a browser sees
+    an opaque "Failed to fetch" instead of the challenge. Appending to
+    ``user_middleware`` puts these innermost, so CORS decorates every response
+    they produce. Order among them: tracing, then auth, so a refused request
+    still shows up in the trace.
+    """
+    from starlette.middleware import Middleware
+
     if settings.agent_auth not in ("off", "", "none", "jwt"):
         raise ValueError(f"AGENT_AUTH must be off or jwt, got {settings.agent_auth!r}")
-    if settings.agent_auth == "jwt":
-        from common.identity import InboundAuthMiddleware, JwksVerifier
-
-        app.add_middleware(
-            InboundAuthMiddleware,
-            verifier=JwksVerifier(settings.sts_url, audience=agent_name),
-            realm=agent_name,
-        )
 
     from common.tracing import TraceContextMiddleware, otel_export_enabled
 
     if settings.trace_propagation or otel_export_enabled():
-        # Outermost, so a request refused by auth still shows up in the trace.
-        app.add_middleware(
-            TraceContextMiddleware, agent=agent_name, extract=settings.trace_propagation
+        app.user_middleware.append(
+            Middleware(TraceContextMiddleware, agent=agent_name, extract=settings.trace_propagation)
+        )
+    if settings.agent_auth == "jwt":
+        from common.identity import InboundAuthMiddleware, JwksVerifier
+
+        app.user_middleware.append(
+            Middleware(
+                InboundAuthMiddleware,
+                verifier=JwksVerifier(settings.sts_url, audience=agent_name),
+                realm=agent_name,
+            )
         )
 
 

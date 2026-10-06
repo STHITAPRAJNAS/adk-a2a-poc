@@ -307,11 +307,13 @@ off by default, covered by `tests/test_production.py` and driven step by step
 with `scripts/a2a_prod_probe.py`.
 
 **[`a2a-proving-ground/`](a2a-proving-ground/)** is an interactive website for
-learning the A2A 1.0 protocol itself: twenty-two animated lessons covering cards,
+learning the A2A 1.0 protocol itself: twenty-eight animated lessons covering cards,
 discovery, signatures, skills, tasks, streaming, authentication, authorization,
 bindings, gateways and extensions, plus a track on running agents in production
-(restarts, cancels, fan-out, delegated identity, tracing, untrusted replies),
-each with a live wire inspector. Run it on
+(restarts, cancels, fan-out, delegated identity, tracing, untrusted replies)
+and one on front ends (how web UIs talk to agents, AG-UI, rendering output
+safely, and a live lesson that drives these agents from the browser), each with
+a live wire inspector. Run it on
 localhost with `./a2a-proving-ground/serve.sh` (Windows: `serve.ps1`); see its README.
 
 ---

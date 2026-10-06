@@ -10,6 +10,7 @@
   PG.track("security", "Security", "Authentication, authorization, and asking for credentials mid-task.");
   PG.track("infrastructure", "Infrastructure", "Bindings, versions, gateways and extensions: what sits between two agents.");
   PG.track("production", "Agents in production", "What breaks once agents call agents for real: restarts, cancels, fan-out, identity, tracing and untrusted replies.");
+  PG.track("frontends", "Front ends", "How web UIs and apps talk to agents: architectures, streaming into a page, gates as UI, AG-UI, safe rendering, and a live client for your own agents.");
   PG.track("mastery", "Mastery", "Put it together, then prove it.");
 
   /* ════════════════════════════════════════════════════════════════════

@@ -1,4 +1,4 @@
-/* Track 7 — Mastery: the end-to-end proving ground, and the final exam. */
+/* Track 8 — Mastery: the end-to-end proving ground, and the final exam. */
 (function () {
   "use strict";
   const PG = window.PG, h = PG.h, SPEC = PG.SPEC;
@@ -287,7 +287,7 @@
     track: "mastery",
     title: "Final checkpoint",
     short: "Final checkpoint",
-    thesis: "Sixteen questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
+    thesis: "Nineteen questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
     refs: "All lessons",
     brief: `
       <p>Take it cold. If you miss one, read the explanation, revisit the lesson, and come back.</p>
@@ -366,6 +366,15 @@
       { q: "Both agents export spans but you see two traces for one request. What's missing?",
         opts: ["A collector", "traceparent carried across the A2A hop (injected out, extracted in)", "Sampling", "gRPC"],
         a: 1, why: "Exporting is not propagating: the trace context must cross the hop." },
+      { q: "A web page streams SendStreamingMessage. Which browser API reads it?",
+        opts: ["EventSource", "fetch() with the response body read as a stream, plus an SSE parser", "WebSocket", "XMLHttpRequest sync mode"],
+        a: 1, why: "EventSource is GET-only and can't set headers or send a JSON body." },
+      { q: "A UI answers an ADK approval gate by sending the text “approved”. What happens?",
+        opts: ["The gate resumes", "It is a new turn; the pending call stays unanswered", "A2A rejects it", "The task is canceled"],
+        a: 1, why: "Resume with a function_response data part whose id matches the pending call, on the same task." },
+      { q: "Where should a production web UI's agent tokens live?",
+        opts: ["localStorage", "Server-side in a backend-for-frontend; the page holds an HttpOnly session cookie", "In the Agent Card", "In each message's metadata"],
+        a: 1, why: "Nothing a script can read; the BFF also receives push webhooks the browser can't." },
     ],
   });
 })();

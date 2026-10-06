@@ -240,6 +240,9 @@ class InboundAuthMiddleware:
                 "headers": [
                     (b"content-type", b"application/json"),
                     (b"www-authenticate", challenge.encode("latin-1", "replace")),
+                    # Lets browser code read the challenge; CORS hides
+                    # non-safelisted response headers unless exposed.
+                    (b"access-control-expose-headers", b"WWW-Authenticate"),
                 ],
             }
         )

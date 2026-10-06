@@ -62,7 +62,10 @@ def build_app() -> Any:
         a2a=True,
         host=settings.orchestrator_host,
         port=settings.orchestrator_port,
-        allow_origins=["*"],
+        # Was ["*"]: with allow_credentials ADK then echoed ANY origin back, so any
+        # website could call these agents from your browser. Local pages only by
+        # default; CORS_ALLOW_ORIGINS overrides (see common.config).
+        allow_origins=list(settings.cors_allow_origins),
         **hardening.fast_api_kwargs(settings),
     )
     hardening.after_app(app, settings, agent_name=ORCHESTRATOR_APP_NAME)

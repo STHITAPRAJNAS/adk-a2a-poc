@@ -1,7 +1,7 @@
 # A2A Proving Ground
 
 An interactive website for learning the **Agent2Agent (A2A) protocol, specification 1.0**, by
-driving it. Twenty-two lessons in seven tracks, each with the spec's rules in plain language, an animated lab you
+driving it. Twenty-eight lessons in eight tracks, each with the spec's rules in plain language, an animated lab you
 operate, a **wire inspector** that shows the exact HTTP start line, headers and JSON body of every
 exchange, and a short quiz.
 
@@ -71,6 +71,20 @@ makes both work.
 | Want to view it on your phone | `BIND=0.0.0.0 ./serve.sh`, then open `http://<laptop-ip>:8765`. Anyone on the same Wi-Fi can reach it while it runs, and the two WebCrypto labs won't work there because it isn't localhost or HTTPS. |
 | Start the course over | *Final checkpoint* → **Reset my progress**. Progress is kept only in your browser's `localStorage`. |
 
+### The live lesson (Front ends → Drive your own agents)
+
+It calls the repo's real agents from your browser, so both must run on your laptop:
+
+```bash
+cp .env.example .env
+echo "POC_FAKE_LLM=1" >> .env
+make install
+make run
+./a2a-proving-ground/serve.sh
+```
+
+Then open http://localhost:8765/#fe-live and press **Connect**. The agents accept browser calls only from local pages (`http://localhost` or `http://127.0.0.1`, any port). To allow another origin, set `CORS_ALLOW_ORIGINS` (comma-separated) in `.env` before `make run`. The published HTTPS copy of the site can't reach `http://127.0.0.1`; browsers block that.
+
 ## What's inside
 
 | Track | Lesson | You play with |
@@ -95,8 +109,14 @@ makes both work.
 | | Identity across hops | No token vs forwarding the user's token vs **RFC 8693 exchange**; audience check on/off and a replay attacker; be the token service (`invalid_client` / `invalid_grant` / `invalid_target` / `invalid_scope`) |
 | | One trace across agents | Animated trace waterfall with propagation off (two traces) and on (one); a working `traceparent` decoder and forwarder |
 | | Remote agents are untrusted input | Prompt injection, false success, bad payloads vs layered defences (data not instructions, validation, policy, out-of-band checks, humans) |
+| Front ends | From a screen to an agent | Four architectures (browser speaks A2A, backend-for-frontend, AG-UI, ADK's own API) with their trade-offs; a CORS preflight simulator, including the `["*"]` + credentials trap this repo had |
+| | Streaming into a page | Why not `EventSource`; a **real SSE parser** fed at any chunk size vs a naive one; tab reloads (`GetTask` + `SubscribeToTask`) and why aborting a fetch isn't `CancelTask` |
+| | Approvals and sign-ins in the UI | An approval card generated from the pending call's arguments; function-response vs plain-text answers; `AUTH_REQUIRED` as an OAuth popup |
+| | AG-UI | Step through this repo's real A2A frames translated into AG-UI 1.0 events, including the interrupt and its resume |
+| | Agent output in the browser | A **real allowlist sanitizer** against `onerror`, `javascript:` links, data-leaking images and fake login forms, previewed in a sandboxed iframe |
+| | Drive your own agents | **Live**: this page becomes an A2A client of your local concierge — card, stream, approval form, job polling, completion, cancel |
 | Mastery | The proving ground | A full production deploy end to end with **eight injectable faults**, two of which a good client self-heals |
-| | Final checkpoint | Sixteen questions across every track, progress table, cheat sheet |
+| | Final checkpoint | Nineteen questions across every track, progress table, cheat sheet |
 
 Colour means the same thing everywhere: **cobalt** client agent, **spruce** remote agent,
 **amber** gateway / proxy, **plum** authorization server, **teal** registry or store. Task states

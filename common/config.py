@@ -92,6 +92,11 @@ class Settings:
     sts_url: str
     sts_client_id: str
     sts_client_secret: str
+    #: Origins whose pages may call these servers from a browser. ADK sends
+    #: ``allow_credentials: true`` with whatever is listed, and ``*`` makes it
+    #: echo ANY origin back, so the default is local pages only. Comma list;
+    #: ``regex:`` entries are patterns (ADK's syntax).
+    cors_allow_origins: tuple[str, ...]
 
     @property
     def orchestrator_base_url(self) -> str:
@@ -135,6 +140,11 @@ ORCHESTRATOR_APP_NAME = "ops_concierge"
 #: ``agents_dir`` handed to ``get_fast_api_app`` for each server.
 ORCHESTRATOR_AGENTS_DIR = REPO_ROOT / "agents"
 REMOTE_AGENTS_DIR = REPO_ROOT / "remote_agents"
+
+
+#: Any port on localhost / 127.0.0.1: the ADK Dev UI (same origin anyway) and
+#: pages like a2a-proving-ground served with its serve.sh.
+DEFAULT_CORS_ORIGINS = r"regex:^http://(localhost|127\.0\.0\.1)(:\d+)?$"
 
 
 def resolve_model(model_name: str):
@@ -192,4 +202,9 @@ def get_settings() -> Settings:
         sts_url=_env("STS_URL", "http://127.0.0.1:8010").rstrip("/"),
         sts_client_id=_env("STS_CLIENT_ID", ""),
         sts_client_secret=os.environ.get("STS_CLIENT_SECRET", ""),
+        cors_allow_origins=tuple(
+            o.strip()
+            for o in _env("CORS_ALLOW_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
+            if o.strip()
+        ),
     )
