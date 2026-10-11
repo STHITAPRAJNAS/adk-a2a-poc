@@ -1,0 +1,39 @@
+# The demo page (agui/frontend) behind nginx, which also proxies the AG-UI API
+# to the agui-server pods. Reach it with:
+#   kubectl -n agents port-forward svc/agui-frontend 8090:80
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agui-frontend
+  namespace: agents
+  labels: {app: agui-frontend}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: agui-frontend}
+  template:
+    metadata:
+      labels: {app: agui-frontend}
+    spec:
+      containers:
+        - name: nginx
+          image: agui-frontend:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agui-frontend
+  namespace: agents
+spec:
+  selector: {app: agui-frontend}
+  ports:
+    - {name: http, port: 80, targetPort: http}

@@ -138,8 +138,12 @@ def _orchestrator_decider(conversation: Conversation) -> LlmResponse:
     text = conversation.last_user_text().lower()
     if any(word in text for word in _RELEASE_WORDS):
         return _call("transfer_to_agent", agent_name="deployment_agent")
+    # Quote the question back: when a turn is answered twice (the AG-UI replica
+    # replay in agui/), the duplicate shows exactly which question it was.
+    asked = conversation.last_user_text().strip()
     return _text(
-        "I am the Ops Concierge. I don't run releases myself — I hand anything about "
+        (f'You asked: "{asked[:80]}". ' if asked else "")
+        + "I am the Ops Concierge. I don't run releases myself — I hand anything about "
         "readiness, compliance, change approval or deployment to the remote "
         "release-operations agent over A2A. Try: "
         '"deploy checkout-api 2.14.0 to production".'

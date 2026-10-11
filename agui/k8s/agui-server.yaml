@@ -1,0 +1,103 @@
+# The AG-UI front door for ops_concierge, two replicas over one shared session
+# store: the setup ag-ui#2603 needs.
+#
+# A StatefulSet rather than a Deployment, only so each pod has a stable DNS
+# name (agui-server-0.agui-server-pods…, agui-server-1.…). The demo page and
+# agui/scripts/repro.py use those names to send one run to pod 0 and the next
+# to pod 1 deterministically. The agui-server Service load-balances as usual.
+#
+# Switch the ag-ui-adk version with:
+#   kubectl -n agents set image statefulset/agui-server server=agui-server:0.9.0
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agui-server
+  namespace: agents
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agui-server
+  namespace: agents
+spec:
+  selector: {app: agui-server}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+# Headless: gives each StatefulSet pod its own DNS name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: agui-server-pods
+  namespace: agents
+spec:
+  clusterIP: None
+  selector: {app: agui-server}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: agui-server
+  namespace: agents
+  labels: {app: agui-server}
+spec:
+  serviceName: agui-server-pods
+  replicas: 2
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: {app: agui-server}
+  template:
+    metadata:
+      labels: {app: agui-server}
+    spec:
+      serviceAccountName: agui-server
+      containers:
+        - name: server
+          image: agui-server:0.8.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: agui-db, key: password}
+            # $(DB_PASSWORD) is expanded by Kubernetes from the variable above.
+            - name: AGUI_SESSION_DB
+              value: postgresql+asyncpg://agui:$(DB_PASSWORD)@agui-postgres.agents.svc.cluster.local:5432/agui
+            - {name: POC_FAKE_LLM, value: "1"}
+            - {name: ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS, value: "1"}
+            - {name: COMPLIANCE_SCAN_SECONDS, value: "8"}
+            # Release requests are still delegated to deployment-agent over A2A,
+            # using the peer card the concierge's Helm release already publishes.
+            - {name: DEPLOYMENT_AGENT_CARD_URL, value: /etc/a2a/deployment-agent.json}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 3
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 3
+            failureThreshold: 40
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 768Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: cards, mountPath: /etc/a2a, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cards
+          configMap:
+            name: ops-concierge-cards
+            optional: true

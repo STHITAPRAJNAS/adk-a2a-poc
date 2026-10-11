@@ -385,6 +385,28 @@ renders them.
 
 ---
 
+## Phase 10 — an AG-UI front end, and ag-ui#2603  ·  ~20 min
+
+The concierge behind a browser front end speaking AG-UI, two replicas over one
+shared Postgres session store, used to reproduce
+[ag-ui#2603](https://github.com/ag-ui-protocol/ag-ui/issues/2603) (a turn
+answered on one replica is answered again on another) and to prove the fix in
+`ag_ui_adk` 0.9.0. Needs only Phase 2. Everything lives in the repo's
+[`agui/`](../agui/) folder; run from the repo root:
+
+```bash
+./agui/scripts/build.sh
+./agui/scripts/deploy.sh
+./agui/scripts/repro-in-cluster.sh
+./agui/scripts/use-version.sh 0.9.0
+./agui/scripts/repro-in-cluster.sh
+```
+
+The first repro ends in `✗ DUPLICATE`, the second in `✓ each question stored
+once`. The browser version is in [`agui/README.md`](../agui/README.md).
+
+---
+
 ## Stopping and restarting
 
 The cluster is kind (Docker containers), not real EKS, so stopping it does **not**

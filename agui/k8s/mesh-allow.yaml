@@ -1,0 +1,19 @@
+# Optional. Only if you applied lab 40's authorization policies (the specialist
+# accepts only the concierge) AND want release requests typed into the AG-UI
+# page to reach deployment-agent. The ag-ui#2603 repro itself never calls the
+# specialist. ALLOW policies are additive: this adds one caller.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: specialist-accepts-agui-server
+  namespace: agents
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: adk-agent
+      app.kubernetes.io/instance: deployment-agent
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/agents/sa/agui-server"]

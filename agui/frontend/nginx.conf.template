@@ -1,0 +1,36 @@
+# Serves the AG-UI demo page and proxies the agent API, same origin (no CORS).
+#
+#   /api/…        → the agui-server Service: kube-proxy picks a pod per
+#                   connection, and nginx opens a new upstream connection per
+#                   request, so consecutive runs can land on different pods —
+#                   exactly the production situation.
+#   /api/pod0/…   → agui-server-0 by its StatefulSet DNS name
+#   /api/pod1/…   → agui-server-1
+#
+# Names are resolved at request time (variables + resolver) so a restarted pod
+# with a new IP is found again. NGINX_LOCAL_RESOLVERS is filled in from the
+# pod's /etc/resolv.conf by the official image's entrypoint.
+server {
+    listen 8080;
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=5s ipv6=off;
+
+    root /usr/share/nginx/html;
+    location = / { try_files /index.html =404; }
+
+    # AG-UI streams events over SSE: no buffering, long reads.
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 600s;
+    proxy_set_header Host $host;
+
+    location ~ ^/api/pod([01])/(.*)$ {
+        set $target agui-server-$1.agui-server-pods.${AGUI_NAMESPACE}.svc.cluster.local;
+        proxy_pass http://$target:8080/$2$is_args$args;
+    }
+    location /api/ {
+        set $svc agui-server.${AGUI_NAMESPACE}.svc.cluster.local;
+        rewrite ^/api/(.*)$ /$1 break;
+        proxy_pass http://$svc:8080;
+    }
+}

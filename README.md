@@ -306,6 +306,12 @@ agents. Each is an opt-in switch on these same servers (`servers/hardening.py`),
 off by default, covered by `tests/test_production.py` and driven step by step
 with `scripts/a2a_prod_probe.py`.
 
+**[`agui/`](agui/)** puts the concierge behind a browser front end that speaks
+**AG-UI**, runs it with two replicas on the lab cluster, and reproduces
+[ag-ui-protocol/ag-ui#2603](https://github.com/ag-ui-protocol/ag-ui/issues/2603)
+(a turn answered on one replica is answered again on another), then proves the
+fix in `ag_ui_adk` 0.9.0. Start at [`agui/README.md`](agui/README.md).
+
 **[`a2a-proving-ground/`](a2a-proving-ground/)** is an interactive website for
 learning the A2A 1.0 protocol itself: twenty-eight animated lessons covering cards,
 discovery, signatures, skills, tasks, streaming, authentication, authorization,

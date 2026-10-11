@@ -1,0 +1,52 @@
+# The session store BOTH agui-server pods share — the shared state that makes
+# ag-ui#2603 visible. Its password comes from the agui-db Secret, which
+# agui/scripts/deploy.sh generates with openssl; nothing secret is in this file.
+#
+# emptyDir: a lab database that forgets everything when its pod is deleted.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agui-postgres
+  namespace: agents
+  labels: {app: agui-postgres}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: agui-postgres}
+  template:
+    metadata:
+      labels: {app: agui-postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - {name: pg, containerPort: 5432}
+          env:
+            - {name: POSTGRES_USER, value: agui}
+            - {name: POSTGRES_DB, value: agui}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: agui-db, key: password}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "agui", "-d", "agui"]
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agui-postgres
+  namespace: agents
+spec:
+  selector: {app: agui-postgres}
+  ports:
+    - {name: pg, port: 5432, targetPort: pg}
