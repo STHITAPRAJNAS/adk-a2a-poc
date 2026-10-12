@@ -1,0 +1,40 @@
+# The CopilotKit front end + CopilotRuntime (agui/prodlike/web), two replicas.
+# The runtime reaches the agent only through adk-lb.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: support-desk-web
+  namespace: agents
+  labels: {app: support-desk-web}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: support-desk-web}
+  template:
+    metadata:
+      labels: {app: support-desk-web}
+    spec:
+      containers:
+        - name: web
+          image: support-desk-web:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 3000}
+          env:
+            - {name: ADK_URL, value: http://adk-lb.agents.svc.cluster.local:8080}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: support-desk-web
+  namespace: agents
+spec:
+  selector: {app: support-desk-web}
+  ports:
+    - {name: http, port: 80, targetPort: http}

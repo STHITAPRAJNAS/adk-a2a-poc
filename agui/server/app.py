@@ -8,6 +8,9 @@ agent still reaches ``deployment_agent`` over A2A for release work:
                              │
                              └── one shared session store (Postgres)
 
+With ``AGUI_APP=agui.prodlike.agent.support_desk:app`` it serves the support
+desk of the production-shaped setup in agui/prodlike instead.
+
 It exists to reproduce ag-ui-protocol/ag-ui#2603 and watch the fix land:
 
   ag-ui-adk 0.8.0  the "which messages have I already processed?" ledger lives
@@ -32,12 +35,19 @@ Environment:
                    ``postgresql+asyncpg://…`` in the cluster or
                    ``sqlite+aiosqlite:///…`` on a laptop. Unset = in memory,
                    which cannot show the bug (nothing is shared).
+  AGUI_APP         which ADK app to serve, ``module:attribute`` (default
+                   ``agents.ops_concierge.agent:app``; the production-like
+                   setup in agui/prodlike uses
+                   ``agui.prodlike.agent.support_desk:app``). A module that
+                   defines ``register_debug_routes(api)`` adds its own
+                   read-only debug endpoints.
   AGUI_USER_ID     ADK user id for every thread (default ``agui-demo``)
   POD_NAME         reported in X-Served-By (falls back to the hostname)
 """
 
 from __future__ import annotations
 
+import importlib
 import importlib.metadata
 import logging
 import os
@@ -58,7 +68,6 @@ from common.config import DEFAULT_CORS_ORIGINS, get_settings  # noqa: E402
 
 logger = logging.getLogger("agui.server")
 
-APP_NAME = "ops_concierge"
 POD = os.environ.get("POD_NAME") or socket.gethostname()
 AG_UI_ADK_VERSION = importlib.metadata.version("ag-ui-adk")
 
@@ -79,11 +88,16 @@ def build_app() -> FastAPI:
     os.environ.setdefault("ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS", "1")
     from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
 
-    from agents.ops_concierge.agent import app as concierge_app
+    module_name, _, attr = os.environ.get(
+        "AGUI_APP", "agents.ops_concierge.agent:app"
+    ).partition(":")
+    module = importlib.import_module(module_name)
+    adk_app = getattr(module, attr or "app")
+    app_name = adk_app.name
 
     sessions = _session_service()
     agent = ADKAgent.from_app(
-        concierge_app,
+        adk_app,
         user_id=os.environ.get("AGUI_USER_ID", "agui-demo"),
         session_service=sessions,
         # One AG-UI thread = one ADK session, so every pod finds the same
@@ -91,7 +105,7 @@ def build_app() -> FastAPI:
         use_thread_id_as_session_id=True,
     )
 
-    app = FastAPI(title="ops-concierge over AG-UI")
+    app = FastAPI(title=f"{app_name} over AG-UI")
     origins = os.environ.get("CORS_ALLOW_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
     regex = [o[len("regex:") :] for o in origins if o.startswith("regex:")]
     app.add_middleware(
@@ -114,13 +128,13 @@ def build_app() -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, str]:
-        return {"status": "ok", "pod": POD, "ag_ui_adk": AG_UI_ADK_VERSION}
+        return {"status": "ok", "pod": POD, "app": app_name, "ag_ui_adk": AG_UI_ADK_VERSION}
 
     @app.get("/debug/threads/{thread_id}")
     async def thread(thread_id: str) -> dict[str, Any]:
         """What the SHARED session holds for a thread, read fresh from the store."""
         session = await sessions.get_session(
-            app_name=APP_NAME,
+            app_name=app_name,
             user_id=os.environ.get("AGUI_USER_ID", "agui-demo"),
             session_id=thread_id,
         )
@@ -132,7 +146,8 @@ def build_app() -> FastAPI:
             text = " ".join(p.text for p in parts if getattr(p, "text", None)).strip()
             if not text:
                 continue
-            turns.append({"author": event.author, "text": text[:200]})
+            served_by = (event.custom_metadata or {}).get("served_by")
+            turns.append({"author": event.author, "text": text[:200], "served_by": served_by})
         asked = Counter(t["text"] for t in turns if t["author"] == "user")
         return {
             "thread_id": thread_id,
@@ -142,8 +157,16 @@ def build_app() -> FastAPI:
             "events": len(session.events),
             "user_turns": sum(asked.values()),
             "turns": turns,
+            # ag-ui-adk >= 0.9.0 keeps its "already processed" ledger here, in
+            # the shared session; 0.8.0 keeps it in each pod's memory (0 here).
+            "ledger_markers": sum(
+                1 for k in (session.state or {}) if k.startswith("_ag_ui_processed_message:")
+            ),
             "duplicates": [{"text": t, "times": n} for t, n in asked.items() if n > 1],
         }
+
+    if hasattr(module, "register_debug_routes"):
+        module.register_debug_routes(app)
 
     return app
 
@@ -157,7 +180,7 @@ def main() -> None:
     settings = get_settings()
     host = os.environ.get("AGUI_HOST", "127.0.0.1")
     port = int(os.environ.get("AGUI_PORT", "8080"))
-    print(f"ops-concierge over AG-UI  http://{host}:{port}/agui")
+    print(f"{os.environ.get('AGUI_APP', 'agents.ops_concierge.agent:app')} over AG-UI  http://{host}:{port}/agui")
     print(f"  ag-ui-adk   {AG_UI_ADK_VERSION}")
     print(f"  sessions    {os.environ.get('AGUI_SESSION_DB', '(in memory)').split('://', 1)[0]}://")
     print(f"  pod         {POD}")

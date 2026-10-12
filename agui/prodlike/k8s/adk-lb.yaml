@@ -1,0 +1,46 @@
+# adk-lb: L7 round robin in front of the support-desk pods, no affinity.
+# Its nginx config is agui/prodlike/k8s/adk-lb.conf.template, loaded into the
+# adk-lb-conf ConfigMap by agui/prodlike/scripts/deploy.sh.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adk-lb
+  namespace: agents
+  labels: {app: adk-lb}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: adk-lb}
+  template:
+    metadata:
+      labels: {app: adk-lb}
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.30-alpine
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: NGINX_ENTRYPOINT_LOCAL_RESOLVERS, value: "1"}
+            - {name: ADK_BACKEND, value: support-desk-pods.agents.svc.cluster.local}
+          readinessProbe:
+            httpGet: {path: /lb-health, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 50m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: conf, mountPath: /etc/nginx/templates}
+      volumes:
+        - name: conf
+          configMap: {name: adk-lb-conf}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adk-lb
+  namespace: agents
+spec:
+  selector: {app: adk-lb}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

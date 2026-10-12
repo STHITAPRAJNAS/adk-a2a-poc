@@ -16,3 +16,6 @@ logs/
 
 # pip install -e metadata
 *.egg-info/
+
+# agui/prodlike load-test reports
+agui/prodlike/reports/

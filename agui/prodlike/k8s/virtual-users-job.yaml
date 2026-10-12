@@ -1,0 +1,28 @@
+# The load test, run inside the cluster so it reaches adk-lb exactly as the
+# CopilotKit runtime does. agui/prodlike/scripts/soak.sh fills in LABEL, USERS
+# and TURNS, runs it, and saves the report it prints.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: virtual-users
+  namespace: agents
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: {app: virtual-users}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: users
+          image: agui-server:0.9.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - agui/prodlike/loadtest/virtual_users.py
+            - --lb=http://adk-lb.agents.svc.cluster.local:8080
+            - --label=LABEL
+            - --users=USERS
+            - --turns=TURNS
+            - --print-json

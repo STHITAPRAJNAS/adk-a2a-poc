@@ -1,0 +1,31 @@
+:root {
+  --paper: #f6f5f1; --panel: #ffffff; --panel-2: #efede7; --ink: #1c1c1a; --muted: #6a6964;
+  --rule: #dad7ce; --accent: #2a4fb8; --err: #b3261e; --err-bg: #fbe9e7; --ok: #1d7a3a; --ok-bg: #e5f3e9;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #161614; --panel: #1f1f1c; --panel-2: #2a2a26; --ink: #ecebe6; --muted: #a3a29c;
+    --rule: #3a3a35; --accent: #8aa6ff; --err: #ff8a80; --err-bg: #3a1d1a; --ok: #7ed39a; --ok-bg: #1b3022; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, sans-serif; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+header h1 { font-size: 17px; margin: 0; }
+.muted { color: var(--muted); }
+.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
+main { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; padding: 16px; max-width: 1280px; margin: 0 auto; }
+@media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+section { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; min-width: 0; display: grid; gap: 10px; align-content: start; }
+.chat { height: 70vh; min-height: 420px; padding: 0; overflow: hidden; }
+.chat .copilotKitChat { height: 100%; }
+h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button, select { font: inherit; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--rule); background: var(--panel-2); color: var(--ink); cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+.note { padding: 8px 10px; border-radius: 6px; font-size: 13px; background: var(--panel-2); }
+.note.err { background: var(--err-bg); border: 1px solid var(--err); }
+.note.ok { background: var(--ok-bg); border: 1px solid var(--ok); }
+.list { display: grid; gap: 4px; }
+.list div { padding: 4px 8px; border-left: 3px solid var(--rule); border-radius: 3px; font-size: 13px; overflow-wrap: anywhere; }
+.list div.bad { border-left-color: var(--err); background: var(--err-bg); }
+.pod { color: var(--accent); font-weight: 600; }
+.help { font-size: 12.5px; color: var(--muted); margin: 0; }

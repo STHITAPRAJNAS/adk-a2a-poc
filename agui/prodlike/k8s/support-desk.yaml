@@ -1,0 +1,95 @@
+# The ADK app, three replicas of a plain Deployment behind adk-lb, all sharing
+# one Postgres (agui-postgres, from agui/k8s/postgres.yaml): sessions AND the
+# incidents table. This is the production shape ag-ui#2603 needs; nothing here
+# is special to the bug.
+#
+# Same image as agui/ (agui-server:0.8.0 or :0.9.0, only ag-ui-adk differs);
+# AGUI_APP selects the support desk instead of the concierge.
+#
+# Switch versions with ./agui/prodlike/scripts/use-version.sh 0.9.0 (a normal
+# rolling update: maxUnavailable 0, one pod at a time).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: support-desk
+  namespace: agents
+---
+# Headless: one DNS A record per READY pod. adk-lb round-robins over them.
+apiVersion: v1
+kind: Service
+metadata:
+  name: support-desk-pods
+  namespace: agents
+spec:
+  clusterIP: None
+  selector: {app: support-desk}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: support-desk
+  namespace: agents
+  labels: {app: support-desk}
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  selector:
+    matchLabels: {app: support-desk}
+  template:
+    metadata:
+      labels: {app: support-desk}
+    spec:
+      serviceAccountName: support-desk
+      terminationGracePeriodSeconds: 20
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app: support-desk}
+      containers:
+        - name: server
+          image: agui-server:0.8.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: AGUI_APP, value: "agui.prodlike.agent.support_desk:app"}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: agui-db, key: password}
+            # $(DB_PASSWORD) is expanded by Kubernetes from the variable above.
+            - name: AGUI_SESSION_DB
+              value: postgresql+asyncpg://agui:$(DB_PASSWORD)@agui-postgres.agents.svc.cluster.local:5432/agui
+            # The scripted model: no API key, deterministic, and it names the
+            # pod in every answer. Remove it (and add GOOGLE_API_KEY from a
+            # Secret) to run on Gemini; the audit view works either way.
+            - {name: POC_FAKE_LLM, value: "1"}
+            # Real-world timings: a model call takes a moment, paging on-call
+            # takes a few seconds. Pods killed by the chaos test die inside these.
+            - {name: SUPPORT_DESK_THINK_SECONDS, value: "1"}
+            - {name: SUPPORT_DESK_PAGING_SECONDS, value: "3"}
+            - {name: ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS, value: "1"}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: support-desk
+  namespace: agents
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: {app: support-desk}

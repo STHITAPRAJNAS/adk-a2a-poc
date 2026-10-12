@@ -1,0 +1,42 @@
+# adk-lb: the load balancer between the CopilotKit runtime and the ADK
+# replicas. An L7 round robin with no session affinity, as an ALB, a GCLB or an
+# ingress controller in front of a Deployment would be.
+#
+# The upstream is the HEADLESS Service support-desk-pods, so DNS returns one A
+# record per ready pod. proxy_pass uses a variable, which makes nginx resolve
+# the name at request time (cached for valid=5s) and round-robin over all the
+# addresses it gets back. Pods that restart or scale in/out are picked up within
+# seconds, and a pod that refuses the connection is skipped (proxy_next_upstream
+# error), as a real LB's health check would. A request that already reached a
+# pod is never re-sent elsewhere: POST is not idempotent.
+#
+# NGINX_LOCAL_RESOLVERS is filled in from the pod's /etc/resolv.conf by the
+# official image's entrypoint (NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1).
+resolver ${NGINX_LOCAL_RESOLVERS} valid=5s ipv6=off;
+
+log_format lb '$remote_addr "$request" $status upstream=$upstream_addr '
+              'served_by=$upstream_http_x_served_by rt=$request_time';
+
+server {
+    listen 8080;
+    access_log /dev/stdout lb;
+
+    location = /lb-health { return 200 "ok\n"; }
+
+    location / {
+        set $backend ${ADK_BACKEND};
+        proxy_pass http://$backend:8080;
+
+        # AG-UI runs stream Server-Sent Events: no buffering, long reads, and a
+        # fresh upstream connection per request (no keepalive pool), so every
+        # run is balanced on its own.
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 600s;
+        proxy_set_header Host $host;
+        proxy_set_header Connection "";
+        proxy_next_upstream error;
+        add_header X-LB-Upstream $upstream_addr always;
+    }
+}

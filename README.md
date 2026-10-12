@@ -311,6 +311,9 @@ with `scripts/a2a_prod_probe.py`.
 [ag-ui-protocol/ag-ui#2603](https://github.com/ag-ui-protocol/ag-ui/issues/2603)
 (a turn answered on one replica is answered again on another), then proves the
 fix in `ag_ui_adk` 0.9.0. Start at [`agui/README.md`](agui/README.md).
+[`agui/prodlike/`](agui/prodlike/) does the same in a production-shaped setup:
+a real CopilotKit app, a load balancer, three replicas, side-effecting tools,
+a load test and chaos.
 
 **[`a2a-proving-ground/`](a2a-proving-ground/)** is an interactive website for
 learning the A2A 1.0 protocol itself: twenty-eight animated lessons covering cards,

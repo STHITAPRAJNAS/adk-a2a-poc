@@ -17,6 +17,11 @@ and then watch the fix from
                                                      └──A2A──► deployment-agent (release requests only)
 ```
 
+**Want it the way production runs it?** [`prodlike/`](prodlike/) puts a real
+CopilotKit app, an L7 load balancer and a 3-replica Deployment in front of an
+agent whose tool has side effects, then load-tests it with and without pods
+being killed. Start there if your stack is CopilotKit → load balancer → ADK.
+
 ## The issue in one paragraph
 
 An AG-UI client keeps the conversation itself and sends the **whole history**
