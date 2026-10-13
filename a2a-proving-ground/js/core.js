@@ -556,6 +556,22 @@
     });
   }
 
+  function explainBox(ex) {
+    const box = h("section", { class: "explain", "aria-label": "In plain words" });
+    if (ex.plain) box.appendChild(h("div", {}, h("p", { class: "explain-label", text: "In plain words" }), h("div", { class: "explain-plain", html: ex.plain })));
+    if (ex.terms && ex.terms.length) {
+      const dl = h("dl", { class: "terms" });
+      ex.terms.forEach(function (t) { dl.appendChild(h("dt", { html: t[0] })); dl.appendChild(h("dd", { html: t[1] })); });
+      box.appendChild(h("details", { class: "explain-terms" }, h("summary", { text: "Words used in this lesson (" + ex.terms.length + ")" }), dl));
+    }
+    return box;
+  }
+  function tryBox(steps) {
+    return h("section", { class: "try-this", "aria-label": "Try this in the lab" },
+      h("p", { class: "explain-label", text: "Try this in the lab" }),
+      h("ol", {}, steps.map(function (s) { return h("li", { html: s }); })));
+  }
+
   function renderLesson(def, main) {
     const idx = PG.lessons.indexOf(def);
     const tr = PG.trackOf(def);
@@ -567,6 +583,13 @@
 
     const brief = h("article", { class: "brief", html: def.brief || "" });
     const bench = h("div", { class: "bench" });
+    /* Plain-language layer (js/explain.js): a summary and the words used, above
+     * the lesson text; what to do in the lab, above the lab. */
+    const ex = (PG.explain || {})[def.id];
+    if (ex) {
+      if (ex.plain || (ex.terms && ex.terms.length)) brief.insertBefore(explainBox(ex), brief.firstChild);
+      if (ex.tryThis && ex.tryThis.length) bench.appendChild(tryBox(ex.tryThis));
+    }
     main.appendChild(h("div", { class: "lesson-grid" }, brief, bench));
 
     const api = { tok: PG.session, alive: function () { return PG.alive(api.tok); } };

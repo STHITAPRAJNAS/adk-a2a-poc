@@ -341,9 +341,12 @@ img, svg { max-width: 100%; }
   border: 1px solid var(--rule);
   border-radius: var(--r-md);
   padding: 12px 14px;
-  display: grid;
-  gap: 6px;
+  /* Block flow, not grid: inline <code>, <b> and links inside a note must stay
+   * on the line they belong to. The label sits on its own line above. */
+  display: block;
 }
+.note > .note-label { display: block; margin-bottom: 6px; }
+.note > * + *:not(.note-label) { margin-top: 6px; }
 .note .note-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 .note.spec .note-label { color: var(--client); }
 .note.trap .note-label { color: var(--err); }
@@ -884,3 +887,21 @@ table.tbl tr:last-child td { border-bottom: 0; }
 .bubble.tool { justify-self: start; font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); background: transparent; border-style: dashed; }
 .bubble.gate { justify-self: stretch; max-width: none; border: 1.5px solid var(--warn); background: var(--warn-bg); display: grid; gap: 8px; }
 .bubble.gate .kv { margin: 0; }
+
+/* ── plain-language layer (js/explain.js) ────────────────────────────── */
+.explain, .try-this { font-family: var(--font-ui); font-size: 14.5px; line-height: 1.55; border: 1px solid var(--rule); border-left: 3px solid var(--client); border-radius: var(--r-md); background: var(--panel); padding: 12px 14px; display: grid; gap: 10px; }
+.try-this { border-left-color: var(--server); margin-bottom: 14px; }
+.explain-label { margin: 0; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.explain-plain { display: grid; gap: 8px; }
+.explain-plain p { margin: 0; }
+.explain-terms summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.terms { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 6px 14px; margin: 10px 0 0; font-size: 13.5px; }
+.terms dt { font-weight: 650; }
+.terms dd { margin: 0; color: var(--ink); }
+.terms dt, .terms dd { min-width: 0; overflow-wrap: anywhere; }
+.try-this ol { margin: 0; padding-left: 1.3em; display: grid; gap: 5px; }
+.try-this li { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .terms { grid-template-columns: 1fr; gap: 2px; }
+  .terms dd { margin-bottom: 8px; }
+}

@@ -5,6 +5,9 @@ driving it. Thirty-one lessons in eight tracks, each with the spec's rules in pl
 operate, a **wire inspector** that shows the exact HTTP start line, headers and JSON body of every
 exchange, and a short quiz.
 
+Every lesson opens with an **In plain words** summary (an everyday explanation and the words it
+uses) and a **Try this in the lab** list next to the lab, from `js/explain.js`.
+
 Everything is taught from the primary sources in
 [`a2aproject/A2A`](https://github.com/a2aproject/A2A): `docs/specification.md` and
 `specification/a2a.proto` (1.0.x), plus the `docs/topics/*` guides. Section numbers are cited on

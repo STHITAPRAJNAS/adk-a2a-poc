@@ -1,32 +1,67 @@
 # Lab 84 — Two replicas: the task is shared, the work is not
 
-Run everything from the `k8s-lab` folder (or `mac-lab`).
+Run everything from the `k8s-lab` folder (or `mac-lab`). About 20 minutes.
 
-Lab 80 made tasks survive a restart by putting the task store and the session
-store in a database. The obvious next step is two replicas behind one Service,
-and it looks like it should just work: every replica can read every task.
+## In plain words
 
-It does not. A shared store lets any replica **read** a task. While a task
-runs, two things exist only in the memory of the pod running it: the executor
-doing the work, and the live event stream subscribers read. Send the wrong call
-to the other pod and you get two failures that look like success:
+You run **two copies** (replicas) of the release agent behind one Service, so
+either copy can take any request. Both copies keep their tasks in the **same
+database**, so either copy can look any task up.
+
+That sounds like it should just work. It doesn't, because a task has two parts:
+
+| Part | Where it lives | Who can use it |
+|---|---|---|
+| The **record**: id, state, history | the shared database | either copy |
+| The **work** in progress, and the live updates it sends out | the memory of the copy that started it | only that copy |
+
+Think of a shared order book in a kitchen with two cooks. Either cook can read
+any order. Only the cook actually making the dish can tell you when it is
+ready, or stop making it.
+
+Now send a follow-up call to the **other** copy, the one not doing the work:
+
+- **"Keep me posted on this task"** (`SubscribeToTask`): it reads the record,
+  says "WORKING", and then never says anything again. The updates are being
+  produced by the other copy, and they never reach this one.
+- **"Cancel this task"** (`CancelTask`): it marks the record CANCELED and tells
+  you "done". The copy doing the work never hears about it, carries on, and a
+  few seconds later overwrites CANCELED with its next state. The cancelled
+  release goes ahead and asks a person for approval.
+
+Both look like success when they happen. That is what makes them dangerous.
+
+The fix in this lab: each copy writes down "I am working on task X, reach me at
+this address" in the shared database, and a copy that gets one of those two
+calls for somebody else's task **passes it on** to the right copy.
+
+This is the A2A version of the AG-UI bug in [`agui/`](../../../agui/): shared
+data, memory that is not shared, and a load balancer that does not care which
+copy it picks.
 
 ```
- a2a-probe ──SendStreamingMessage──► replica A   runs the release
-           ──SubscribeToTask───────► replica B   ✗ snapshot, then silence
-           ──CancelTask────────────► replica B   ✗ "CANCELED"… then A carries on
-                                        │
-                            a2a-postgres (tasks, sessions, owners)
+ a2a-probe ──"start a release"────► copy A   does the work
+           ──"keep me posted"─────► copy B   ✗ "WORKING"… then silence
+           ──"cancel it"──────────► copy B   ✗ "CANCELED"… then A carries on
+                                      │
+                         a2a-postgres (the shared record of every task)
 ```
 
-This is the A2A twin of the AG-UI bug in [`agui/`](../../../agui/): shared
-data, per-pod memory, and a load balancer that does not care.
+## Words used below
+
+| Word | Meaning here |
+|---|---|
+| replica / copy / pod | one running instance of the release agent; this lab has two |
+| task store | the database table holding every A2A task's record |
+| owner | the copy whose memory holds a task's running work |
+| subscribe | an open connection on which the agent streams updates (`SubscribeToTask`) |
+| the probe | a pod inside the cluster that sends the test requests and reports what happened |
 
 ## Before you start
 
-The agents need this repo's newer code (the replica probe and the
-`A2A_OWNER_ROUTING` switch), and the image now carries the Postgres driver.
-Rebuild, and recreate the probe pod so it runs the new image:
+**1. Rebuild the agent image and restart the probe pod.** The new switch and the
+test script are in this repo's newer code, and the image now includes the
+Postgres driver. The probe pod has to be recreated so it uses the new image.
 
 ```bash
 make image
@@ -34,7 +69,10 @@ kubectl -n agents delete pod a2a-probe --ignore-not-found
 make probe
 ```
 
-Create the database password and start the database:
+You should see the image build, then `pod/a2a-probe condition met`.
+
+**2. Start the shared database.** The first line makes a random password and
+stores it in a Secret; nothing secret is written to a file.
 
 ```bash
 kubectl -n agents create secret generic a2a-db --from-literal=password="$(openssl rand -hex 24)"
@@ -42,9 +80,11 @@ kubectl apply -f labs/84-replicas/postgres.yaml
 kubectl -n agents rollout status deploy/a2a-postgres
 ```
 
-Then the specialist, twice. This is a separate copy, `deployment-agent-ha`:
-lab 80 gave the chart's `deployment-agent` a volume only one pod can mount, and
-this way labs 80–83 keep working untouched.
+You should see `deployment "a2a-postgres" successfully rolled out`.
+
+**3. Start two copies of the release agent.** This is a separate deployment,
+`deployment-agent-ha`, next to the one labs 20–83 use, so those labs keep
+working. (Lab 80 gave the original a disk only one pod can use.)
 
 ```bash
 kubectl apply -f labs/84-replicas/specialist-ha.yaml
@@ -52,18 +92,23 @@ kubectl -n agents rollout status deploy/deployment-agent-ha
 kubectl -n agents get pods -l app=deployment-agent-ha -o wide
 ```
 
-Two pods, ideally on two nodes. Both read and write `a2a-postgres`.
+You should see **two** pods, `Running`, `1/1`, ideally on two different nodes.
+Both talk to `a2a-postgres`.
 
-## Step 1 — subscribe on the other replica
-
-`replica-probe.sh` finds the two pods' IPs, starts a release on A, and while A
-is in the 8-second compliance scan, subscribes to the task on B:
+## Step 1 — "keep me posted" sent to the wrong copy
 
 ```bash
 ./labs/84-replicas/replica-probe.sh subscribe
 ```
 
+The script finds the two pods, calls them A and B, asks **A** to start a
+release (A then spends 8 seconds on a compliance scan), and one second later
+asks **B** to keep it posted on that task.
+
+What you should see:
+
 ```
+A = deployment-agent-ha-…-x7k2p (10.244.1.12)   B = deployment-agent-ha-…-q9m4d (10.244.2.8)
     0.1s  A send       SUBMITTED
     0.2s  A send       WORKING
     1.3s  B subscribe  WORKING
@@ -73,17 +118,31 @@ is in the 8-second compliance scan, subscribes to the task on B:
 ✗ STUCK: the task reached INPUT_REQUIRED on A; B's subscriber saw ['WORKING'] and is still waiting.
 ```
 
-B found the task in Postgres and sent the stored snapshot. Then nothing,
-forever: the events are produced in A's memory, and B's stream for that task is
-an empty local queue nobody writes to. A browser or an orchestrator that
-reconnects through the Service has a one-in-two chance of landing here, and it
-cannot tell: the stream is open, it just never says anything again.
+How to read it, line by line:
 
-## Step 2 — cancel on the other replica
+- `A send WORKING`: A accepted the release and is working on it.
+- `B subscribe WORKING`: B found the task in the database and reported its
+  state at that moment. So far so good.
+- `A send INPUT_REQUIRED`: on A, the scan finished and the task now waits for
+  a human approval.
+- B never reports that. Its connection is still open, so whoever is listening
+  (a web page, another agent) just keeps waiting on "WORKING".
+
+**Why:** the updates come from the work, and the work is in A's memory. B has
+nothing that will ever send it an update for this task.
+
+**How often it bites:** with two copies and a load balancer, about half of all
+reconnects land on the wrong copy.
+
+## Step 2 — "cancel it" sent to the wrong copy
 
 ```bash
 ./labs/84-replicas/replica-probe.sh cancel
 ```
+
+Same start (A begins a release); then **B** is asked to cancel it.
+
+What you should see:
 
 ```
     1.2s  B cancel     answered CANCELED
@@ -94,13 +153,19 @@ cannot tell: the stream is open, it just never says anything again.
 ✗ RESURRECTED: B answered CANCELED, then the task became INPUT_REQUIRED.
 ```
 
-Worse than step 1. B wrote CANCELED to the shared store and told the caller
-it worked. A never heard of it, finished the scan, and wrote INPUT_REQUIRED
-over a state the spec calls final. The "cancelled" release went on to open an
-approval ticket. Every caller that checked after the cancel saw CANCELED; every
-caller that checks now sees a live task.
+How to read it:
 
-## Step 3 — send the call to the pod that runs the task
+- `B cancel answered CANCELED` and `GetTask CANCELED`: B wrote CANCELED into
+  the database and said it worked. Anyone checking now sees a cancelled task.
+- `A send INPUT_REQUIRED`: A never heard of the cancel. It finished the scan
+  and wrote its next state over the record.
+- `GetTask INPUT_REQUIRED`: the task is alive again.
+
+**Why this is worse than step 1:** the A2A spec says CANCELED is final; once a
+task gets there it must never change. Here it did, the work went on, and an
+approval request for a cancelled release is now waiting in a person's queue.
+
+## Step 3 — turn on the fix and run both again
 
 ```bash
 kubectl -n agents set env deploy/deployment-agent-ha A2A_OWNER_ROUTING=1
@@ -108,6 +173,10 @@ kubectl -n agents rollout status deploy/deployment-agent-ha
 ./labs/84-replicas/replica-probe.sh subscribe
 ./labs/84-replicas/replica-probe.sh cancel
 ```
+
+The first line switches the fix on; Kubernetes restarts both copies with it.
+
+What you should see:
 
 ```
     8.4s  B subscribe  INPUT_REQUIRED
@@ -118,54 +187,78 @@ kubectl -n agents rollout status deploy/deployment-agent-ha
 ✓ canceled, and it stayed canceled: the work stopped where it ran
 ```
 
-What the switch does (`common/task_ownership.py`):
+Both calls still went to B, but B passed them to A, the copy doing the work:
+the subscription now sees every update, and the cancel actually stops the work.
 
-- While its executor runs a task, a pod records "task X runs here, reach me at
-  `http://<pod IP>:8001`" in a table next to the task store (`a2a_task_owner`),
-  and removes the row when the run ends.
-- A pod that receives `SubscribeToTask` or `CancelTask` for a task another pod
-  owns forwards the request there unchanged (same headers, same token) and
-  streams the answer back. The answer carries `x-a2a-served-by`.
-- If the owner does not answer (it died mid-task), the stale claim is dropped
-  and the call is served locally, as before.
-- `SendMessage`, `GetTask` and `ListTasks` are not touched: the store answers
-  them correctly from any pod.
+## How the fix works
 
-See it in the logs:
+The switch is `A2A_OWNER_ROUTING=1`; the code is `common/task_ownership.py`.
+
+1. **Sign in, sign out.** When a copy starts working on a task, it adds a row
+   to a small table in the shared database: *task X runs here, at
+   `http://<my pod IP>:8001`*. When the work ends, it removes the row.
+2. **Pass it on.** When a copy receives `SubscribeToTask` or `CancelTask`, it
+   looks the task up in that table. If another copy owns it, it sends the
+   request there unchanged (same token, same trace header) and streams the
+   answer back. The answer carries a header, `x-a2a-served-by`, naming the copy
+   that really handled it.
+3. **Dead owners.** If the owner does not answer (its pod was killed mid-task),
+   the stale row is deleted and the call is handled locally, as before.
+4. **Everything else is untouched.** `SendMessage`, `GetTask` and `ListTasks`
+   only need the record, and any copy can read that.
+
+See it happen in the logs:
 
 ```bash
 kubectl -n agents logs -l app=deployment-agent-ha --tail=50 | grep -E "running here|forwarding"
 ```
 
+You should see `running here` from one pod and `forwarding to …, which runs
+it` from the other.
+
 ## Other ways to fix it
 
-| Fix | Trade-off |
-|---|---|
-| Forward to the owner (this lab) | Small; every replica stays equal. One extra hop for the two calls that need it. |
-| Sticky routing by task id at the load balancer | Needs a balancer that reads the JSON-RPC body, and breaks when the pod restarts. |
-| A shared event bus (Redis pub/sub, Postgres `LISTEN/NOTIFY`) | Any pod can serve any stream. Replaces the SDK's in-process queues: a bigger change. |
-| One replica | The honest answer for many agents. Scale with more agents, not more copies. |
+| Fix | Good | Costs |
+|---|---|---|
+| Pass the call to the owner (this lab) | small change; every copy stays the same | one extra hop for two kinds of call |
+| Sticky routing: the load balancer always sends a task's calls to the same copy | no code change in the agent | the balancer must read the request body; breaks when that copy restarts |
+| A shared message bus (Redis, Postgres `LISTEN/NOTIFY`) carrying the live updates | any copy can serve any subscriber | replaces how the A2A library delivers updates: a bigger change |
+| Run one copy | nothing to coordinate | no redundancy; scale by adding different agents instead |
 
-And the cancel side has a second guard worth having whatever you choose: an
-executor that checks the store for a terminal state before each write would
-refuse to resurrect a task even if a cancel slipped past.
+Whatever you choose, it is worth adding one more guard: before the agent
+writes a new state, it checks whether the task is already CANCELED (or another
+final state) and stops if so. That alone would have stopped step 2's cancel
+being undone.
 
-## What else lives in one pod's memory
+## What else is still in one copy's memory
 
-The specialist also keeps its approval tickets and deployment jobs in memory
-(`common/approvals.py`, `common/jobs.py`). With two replicas, a ticket opened on
-A is unknown to B. Owner routing does not fix that, and neither does any A2A
-setting: application state that must outlive a pod or be seen by every pod
-belongs in the database too. Lab 80 made that point for one pod; this lab makes
-it for two.
+The release agent also keeps its approval tickets and deployment jobs in memory
+(`common/approvals.py`, `common/jobs.py`). With two copies, a ticket opened by A
+does not exist on B. The fix in this lab does not change that, and no A2A
+setting can: anything that must survive a restart, or be visible to every copy,
+has to live in the database. Lab 80 showed that for one copy; this lab shows it
+for two.
 
-## Verify
+## If something goes wrong
+
+| You see | Likely cause | Do this |
+|---|---|---|
+| `need two running deployment-agent-ha pods` | a pod is still starting, or crashed | `kubectl -n agents get pods -l app=deployment-agent-ha`; if one is in `CrashLoopBackOff`, look at `kubectl -n agents logs <pod>` |
+| pods crash with a database error at start | they started before Postgres was ready | `kubectl -n agents rollout restart deploy/deployment-agent-ha` |
+| `ModuleNotFoundError: asyncpg` in the pod log | the image was not rebuilt | `make image`, then the restart above |
+| `error: unable to upgrade connection` or `pods "a2a-probe" not found` | the probe pod is missing | `make probe` |
+| `probe failed: … No such file` for the script | the probe pod runs the old image | `kubectl -n agents delete pod a2a-probe`, then `make probe` |
+| step 3 still says STUCK | the copies did not restart with the switch | `kubectl -n agents get deploy deployment-agent-ha -o yaml | grep -A1 OWNER_ROUTING` should show `"1"` |
+
+## Check your work
 
 ```bash
 ./scripts/verify-84-replicas.sh
 ```
 
-## Undo
+It passes only with the fix on and both copies running.
+
+## Clean up
 
 ```bash
 kubectl delete -f labs/84-replicas/specialist-ha.yaml -f labs/84-replicas/postgres.yaml
