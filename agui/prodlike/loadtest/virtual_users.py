@@ -34,6 +34,7 @@ import asyncio
 import json
 import os
 import random
+import re
 import sys
 import time
 import uuid
@@ -265,6 +266,11 @@ def summarize(label: str, users: list[VirtualUser], audits: list[dict[str, Any]]
         "runs": len(runs),
         "runs_by_kind": dict(kinds),
         "runs_failed": sum(1 for r in runs if r.error),
+        # Why runs broke, most common first: tells a killed pod (connection
+        # reset, 502 from the LB) from trouble inside the pods (RUN_ERROR).
+        "errors_by_reason": dict(
+            Counter(re.sub(r"\d+", "N", r.error)[:90] for r in runs if r.error).most_common(6)
+        ),
         "served_by": dict(pods),
         "pod_switches_within_thread": switches,
         "unrequested_answers": resync_answered,
@@ -284,7 +290,7 @@ ROWS = [
     ("conversations", "users"),
     ("AG-UI runs", "runs"),
     ("  re-runs with nothing new (env switch)", None),
-    ("  runs that broke (pod killed) and were retried", "runs_failed"),
+    ("  runs that broke and were retried", "runs_failed"),
     ("    retries the agent answered", "retries_answered"),
     ("    retries that got no answer", "retries_silent"),
     ("runs that changed pod within a conversation", "pod_switches_within_thread"),
@@ -312,6 +318,8 @@ def print_report(*reports: dict[str, Any]) -> None:
         print(f"{name:{width}}" + "".join(f"{str(v):>12}" for v in vals))
     for r in reports:
         print(f"\n{r['label']}: runs per replica {json.dumps(r['served_by'])}, {r['seconds']}s")
+        for reason, n in (r.get("errors_by_reason") or {}).items():
+            print(f"  {n:>4} × {reason}")
 
 
 async def main_async(args: argparse.Namespace) -> int:
