@@ -27,7 +27,7 @@ from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.apps import App, ResumabilityConfig
 
 from common.config import get_settings, resolve_model
-from common.downstream import make_downstream_client
+from common.downstream import make_downstream_client, surface_downstream_error
 from common.identity import make_scope_guard
 from common.opa_guard import make_opa_tool_guard
 
@@ -108,6 +108,12 @@ def build_remote_deployment_agent() -> TransferableRemoteA2aAgent:
         # carries the downstream token (lab 82) and traceparent (lab 83) on
         # every call. See common.downstream.
         httpx_client=make_downstream_client("deployment_agent", timeout=900.0),
+        # A refused call (lab 82's token check, lab 85's loop guard) otherwise
+        # ends as an empty COMPLETED: put the reason in front of the user.
+        # Off unless switched on, so labs 80-83 show what ADK does by default.
+        after_agent_callback=(
+            surface_downstream_error if settings.surface_downstream_errors else None
+        ),
     )
 
 

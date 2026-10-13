@@ -1,0 +1,97 @@
+# Lab 84 — the release specialist with TWO replicas behind one Service.
+#
+# A copy of the chart's deployment-agent (same image, same agent), deployed
+# next to it rather than in place of it: lab 80 gave the original a
+# ReadWriteOnce volume only one pod can mount, and labs 80-83 keep working
+# untouched. The concierge does not use this copy; the lab drives it directly
+# from the probe pod.
+#
+# Both replicas share the task store and the session store in a2a-postgres
+# (lab 80's fix, done for real replicas). Owner routing starts OFF:
+#   kubectl -n agents set env deploy/deployment-agent-ha A2A_OWNER_ROUTING=1
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deployment-agent-ha
+  namespace: agents
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deployment-agent-ha
+  namespace: agents
+spec:
+  selector: {app: deployment-agent-ha}
+  ports:
+    - {name: http-a2a, port: 8001, targetPort: http-a2a}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-agent-ha
+  namespace: agents
+  labels: {app: deployment-agent-ha}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: deployment-agent-ha}
+  template:
+    metadata:
+      labels: {app: deployment-agent-ha}
+    spec:
+      serviceAccountName: deployment-agent-ha
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app: deployment-agent-ha}
+      containers:
+        - name: agent
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          args: ["servers.remote_agent_server"]
+          ports:
+            - {name: http-a2a, containerPort: 8001}
+          env:
+            - {name: REMOTE_AGENT_HOST, value: "0.0.0.0"}
+            - {name: REMOTE_AGENT_PORT, value: "8001"}
+            - {name: POC_FAKE_LLM, value: "1"}
+            - {name: ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS, value: "1"}
+            - {name: COMPLIANCE_SCAN_SECONDS, value: "8"}
+            - {name: DEPLOYMENT_JOB_SECONDS, value: "20"}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+            - name: POD_IP
+              valueFrom:
+                fieldRef: {fieldPath: status.podIP}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: a2a-db, key: password}
+            # $(VAR) is expanded by Kubernetes from the variables above.
+            - name: TASK_STORE_URI
+              value: postgresql+asyncpg://a2a:$(DB_PASSWORD)@a2a-postgres.agents.svc.cluster.local:5432/a2a
+            - name: SESSION_SERVICE_URI
+              value: postgresql+asyncpg://a2a:$(DB_PASSWORD)@a2a-postgres.agents.svc.cluster.local:5432/a2a
+            # Where the OTHER replica reaches this one when it forwards a call.
+            - name: A2A_ADVERTISE_URL
+              value: http://$(POD_IP):8001
+            - {name: A2A_OWNER_ROUTING, value: "0"}
+          readinessProbe:
+            httpGet: {path: /health, port: http-a2a}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}

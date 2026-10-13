@@ -287,7 +287,7 @@
     track: "mastery",
     title: "Final checkpoint",
     short: "Final checkpoint",
-    thesis: "Nineteen questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
+    thesis: "Twenty-two questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
     refs: "All lessons",
     brief: `
       <p>Take it cold. If you miss one, read the explanation, revisit the lesson, and come back.</p>
@@ -318,6 +318,15 @@
           h("tbody", {}, SPEC.errors.map(function (e) { return h("tr", {}, h("td", { class: "mono", text: e.name }), h("td", { class: "mono", text: String(e.code) }), h("td", { class: "mono", text: e.http })); })))));
     },
     quiz: [
+      { q: "Two replicas share a task store. A CancelTask lands on the replica not running the task and returns CANCELED. Is the task safely canceled?",
+        opts: ["Yes: CANCELED is terminal", "Not necessarily: the owning pod may keep working and overwrite it unless the cancel reaches it", "Only if the client retries", "Yes, if the store is Postgres"],
+        a: 1, why: "The work runs in one pod's memory. Forward the cancel to the owner, or guard writes against terminal states." },
+      { q: "One release request bounces between two agents whose cards name each other. What stops it?",
+        opts: ["A2A's built-in hop count", "A delegation trail carried on each call, checked for cycles and depth by each agent", "contextId", "The task store"],
+        a: 1, why: "A2A has no hop count. Carry and check a trail, like traceparent." },
+      { q: "Which is the most reliable way to test an agent's A2A behaviour in CI?",
+        opts: ["Mock the HTTP client", "Real servers on real ports with a scripted model, asserting on states and errors", "Snapshot the LLM's text", "Run it in production"],
+        a: 1, why: "The hop is where things break; a deterministic model keeps the protocol path stable." },
       { q: "Which field set is required in every 1.0 Agent Card?",
         opts: ["name, url, protocolVersion, skills", "name, description, supportedInterfaces, version, capabilities, defaultInputModes, defaultOutputModes, skills", "name, securitySchemes, skills", "name, provider, signatures"],
         a: 1, why: "Per a2a.proto AgentCard. url and protocolVersion moved into supportedInterfaces." },

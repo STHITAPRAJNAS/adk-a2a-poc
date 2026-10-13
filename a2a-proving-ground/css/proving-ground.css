@@ -797,8 +797,10 @@ table.tbl tr:last-child td { border-bottom: 0; }
 .result.err { background: var(--err-bg); border-color: color-mix(in srgb, var(--err) 35%, transparent); color: var(--ink); }
 .result.warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); color: var(--ink); }
 .steps { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
-.steps li { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; font-size: 13px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--panel); }
-.steps li::before { counter-increment: step; content: counter(step); font-family: var(--font-mono); font-size: 11px; font-weight: 700; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--rule-strong); }
+/* Normal text flow inside each step, so <strong>, <code> and links stay inline;
+ * the number sits in a circle in the left gutter. */
+.steps li { position: relative; display: block; min-height: 34px; font-size: 13px; line-height: 1.5; padding: 6px 8px 6px 40px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--panel); overflow-wrap: anywhere; }
+.steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 8px; top: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--rule-strong); }
 .steps li.run { border-color: var(--client); }
 .steps li.pass::before { background: var(--ok); color: var(--panel); border-color: var(--ok); }
 .steps li.fail::before { background: var(--err); color: var(--panel); border-color: var(--err); }

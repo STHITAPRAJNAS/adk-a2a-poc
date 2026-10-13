@@ -5,6 +5,7 @@ and each is switched on by a different lab:
 
 * identity (lab 82) — ``DOWNSTREAM_AUTH``: attach a token for the next hop
 * tracing  (lab 83) — ``TRACE_PROPAGATION``: attach ``traceparent``
+* loops    (lab 85) — ``A2A_MAX_HOPS``: attach the delegation trail
 * cancel   (lab 81) — the propagated ``CancelTask`` must go out with both
 
 ``RemoteA2aAgent`` takes this client for the normal conversation, and
@@ -21,6 +22,7 @@ from typing import Any
 import httpx
 
 from common.config import Settings, get_settings
+from common.hops import add_trail
 from common.identity import TokenExchanger, make_downstream_auth_hook
 from common.tracing import inject_trace_headers
 
@@ -42,6 +44,8 @@ def request_hooks(audience: str, settings: Settings | None = None) -> list[Any]:
     hooks: list[Any] = []
     if settings.trace_propagation:
         hooks.append(inject_trace_headers)
+    if settings.max_hops:
+        hooks.append(add_trail)
     auth = make_downstream_auth_hook(
         settings.downstream_auth, audience=audience, exchanger=_exchanger()
     )
@@ -83,3 +87,33 @@ def rpc_url_from_card(card: dict[str, Any]) -> str:
     if card.get("url"):
         return card["url"]
     raise ValueError(f"card {card.get('name')!r} advertises no JSON-RPC URL")
+
+
+def surface_downstream_error(callback_context: Any) -> Any:
+    """``after_agent_callback`` for a ``RemoteA2aAgent``: say why the call failed.
+
+    When the next agent answers with a JSON-RPC error (a refused token in lab
+    82, a refused loop in lab 85), ADK's ``RemoteA2aAgent`` logs it and records
+    an event that has ``error_message`` but no content and no ``error_code``.
+    The A2A server turns that into a COMPLETED task with no text: the caller
+    learns nothing. Returning the reason as content makes it the remote agent's
+    answer, so it reaches the user.
+    """
+    from google.genai import types
+
+    session = callback_context.session
+    for event in reversed(session.events):
+        if event.invocation_id != callback_context.invocation_id:
+            break
+        mine = event.author == callback_context.agent_name
+        if mine and event.error_message and not event.content:
+            reason = event.error_message.removeprefix("A2A request failed: ")
+            return types.Content(
+                role="model",
+                parts=[
+                    types.Part(
+                        text=f"{callback_context.agent_name} could not take this request: {reason}"
+                    )
+                ],
+            )
+    return None

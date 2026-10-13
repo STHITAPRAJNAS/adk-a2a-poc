@@ -68,7 +68,9 @@ def build_app() -> Any:
         if job_id and await JOBS.cancel(job_id):  # False if it already finished
             logger.info("cancel: stopped deployment job %s", job_id)
 
-    hardening.before_app(settings, release_hooks=[release_holds])
+    hardening.before_app(
+        settings, release_hooks=[release_holds], port=settings.remote_agent_port
+    )
 
     app = get_fast_api_app(
         # ``get_fast_api_app`` resolves the A2A scan as ``Path.cwd() / agents_dir``.
@@ -141,7 +143,7 @@ def main() -> None:
     print(f"  Jobs         {base}/ops/jobs")
     if settings.use_fake_llm:
         print("  model        scripted (POC_FAKE_LLM=1) — no Gemini calls")
-    for line in hardening.describe(settings):
+    for line in hardening.describe(settings, port=settings.remote_agent_port):
         print(f"  {line}")
     uvicorn.run(
         app,

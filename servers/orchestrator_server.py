@@ -51,7 +51,9 @@ def build_app() -> Any:
     # On a propagated cancel (lab 81) the concierge forwards CancelTask to the
     # specialist task it opened; the card says where that agent lives.
     hardening.before_app(
-        settings, downstream_cards={"deployment_agent": settings.deployment_agent_card_url}
+        settings,
+        downstream_cards={"deployment_agent": settings.deployment_agent_card_url},
+        port=settings.orchestrator_port,
     )
 
     app = get_fast_api_app(
@@ -107,7 +109,7 @@ def main() -> None:
     print(f"  Remote  {settings.deployment_agent_card_url}")
     if settings.use_fake_llm:
         print("  model   scripted (POC_FAKE_LLM=1) — no Gemini calls")
-    for line in hardening.describe(settings):
+    for line in hardening.describe(settings, port=settings.orchestrator_port):
         print(f"  {line}")
     uvicorn.run(
         app,

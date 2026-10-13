@@ -31,6 +31,8 @@ RUN pip install --no-cache-dir \
         "httpx>=0.27" \
         "PyJWT[crypto]>=2.8" \
         "aiosqlite>=0.20" \
+        "asyncpg>=0.29" \
+        "greenlet>=3.0" \
         "sqlalchemy>=2.0" \
         "opentelemetry-exporter-otlp-proto-http>=1.30"
 

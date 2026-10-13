@@ -1,0 +1,176 @@
+# Lab 85 — two concierges, each told the OTHER one is "the release agent".
+#
+# Nothing here is broken code. Each deployment is the ordinary ops-concierge
+# with an ordinary peer card; the cards just point at each other, the way a
+# copy-pasted values file or a stale registry entry would. A release request
+# then bounces loop-a → loop-b → loop-a → … with every hop a valid A2A call.
+#
+# The guard starts OFF:
+#   kubectl -n agents set env deploy/loop-a deploy/loop-b A2A_MAX_HOPS=4
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loop-cards
+  namespace: agents
+data:
+  # The card each concierge reads as "the release agent": the other concierge.
+  loop-a.json: |
+    {
+      "name": "deployment_agent",
+      "description": "Release operations, reached over A2A. (Actually loop-a, the other concierge.)",
+      "url": "http://loop-a.agents.svc.cluster.local:8000/a2a/ops_concierge",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "preferredTransport": "JSONRPC",
+      "capabilities": {"streaming": true, "pushNotifications": false, "stateTransitionHistory": true},
+      "defaultInputModes": ["text/plain"],
+      "defaultOutputModes": ["text/plain"],
+      "skills": [{"id": "releases", "name": "Releases", "description": "Release requests.", "tags": ["release"]}]
+    }
+  loop-b.json: |
+    {
+      "name": "deployment_agent",
+      "description": "Release operations, reached over A2A. (Actually loop-b, the other concierge.)",
+      "url": "http://loop-b.agents.svc.cluster.local:8000/a2a/ops_concierge",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "preferredTransport": "JSONRPC",
+      "capabilities": {"streaming": true, "pushNotifications": false, "stateTransitionHistory": true},
+      "defaultInputModes": ["text/plain"],
+      "defaultOutputModes": ["text/plain"],
+      "skills": [{"id": "releases", "name": "Releases", "description": "Release requests.", "tags": ["release"]}]
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loop-a
+  namespace: agents
+spec:
+  selector: {app: loop-a}
+  ports:
+    - {name: http-a2a, port: 8000, targetPort: http-a2a}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loop-b
+  namespace: agents
+spec:
+  selector: {app: loop-b}
+  ports:
+    - {name: http-a2a, port: 8000, targetPort: http-a2a}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loop-a
+  namespace: agents
+  labels: {app: loop-a}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: loop-a}
+  template:
+    metadata:
+      labels: {app: loop-a}
+    spec:
+      containers:
+        - name: agent
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          args: ["servers.orchestrator_server"]
+          ports:
+            - {name: http-a2a, containerPort: 8000}
+          env:
+            - {name: ORCHESTRATOR_HOST, value: "0.0.0.0"}
+            - {name: ORCHESTRATOR_PORT, value: "8000"}
+            - {name: POC_FAKE_LLM, value: "1"}
+            - {name: ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS, value: "1"}
+            - {name: DEPLOYMENT_AGENT_CARD_URL, value: /etc/a2a/peer.json}
+            - {name: A2A_MAX_HOPS, value: "0"}
+            # Two deployments of the same code are two agents: the trail needs
+            # to tell them apart.
+            - name: A2A_AGENT_ID
+              valueFrom:
+                fieldRef: {fieldPath: "metadata.labels['app']"}
+          readinessProbe:
+            httpGet: {path: /health, port: http-a2a}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: peer, mountPath: /etc/a2a, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: peer
+          configMap:
+            name: loop-cards
+            items:
+              - {key: loop-b.json, path: peer.json}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loop-b
+  namespace: agents
+  labels: {app: loop-b}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: loop-b}
+  template:
+    metadata:
+      labels: {app: loop-b}
+    spec:
+      containers:
+        - name: agent
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          args: ["servers.orchestrator_server"]
+          ports:
+            - {name: http-a2a, containerPort: 8000}
+          env:
+            - {name: ORCHESTRATOR_HOST, value: "0.0.0.0"}
+            - {name: ORCHESTRATOR_PORT, value: "8000"}
+            - {name: POC_FAKE_LLM, value: "1"}
+            - {name: ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS, value: "1"}
+            - {name: DEPLOYMENT_AGENT_CARD_URL, value: /etc/a2a/peer.json}
+            - {name: A2A_MAX_HOPS, value: "0"}
+            # Two deployments of the same code are two agents: the trail needs
+            # to tell them apart.
+            - name: A2A_AGENT_ID
+              valueFrom:
+                fieldRef: {fieldPath: "metadata.labels['app']"}
+          readinessProbe:
+            httpGet: {path: /health, port: http-a2a}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: peer, mountPath: /etc/a2a, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: peer
+          configMap:
+            name: loop-cards
+            items:
+              - {key: loop-a.json, path: peer.json}

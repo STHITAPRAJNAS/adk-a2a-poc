@@ -604,8 +604,15 @@ alias probe='kubectl -n agents exec a2a-probe -- python scripts/a2a_prod_probe.p
 | [81](labs/81-cancel-propagation/) | `probe pause`, `probe cancel`: downstream orphaned | `CANCEL_PROPAGATION=1` | `./scripts/verify-81-cancel.sh` |
 | [82](labs/82-delegated-identity/) | forward the user's token: rejected on audience | token exchange at the lab STS | `./scripts/verify-82-identity.sh` |
 | [83](labs/83-tracing/) | export spans: two unrelated traces | `TRACE_PROPAGATION=1` | `./scripts/verify-83-tracing.sh` |
+| [84](labs/84-replicas/) | two replicas, one task store: subscribe or cancel on the other pod | `A2A_OWNER_ROUTING=1` | `./scripts/verify-84-replicas.sh` |
+| [85](labs/85-loops/) | two concierges pointed at each other: one request, endless hops | `A2A_MAX_HOPS=4` | `./scripts/verify-85-loops.sh` |
 
-Do them in order: 82 closes the agents to callers without a token, which the
+Labs 84 and 85 deploy their own copies of the agents next to the chart's, so
+they work whether or not 80–83 are applied; after `make image` for them,
+recreate the probe pod (`kubectl -n agents delete pod a2a-probe`, then
+`make probe`) so it runs the new image.
+
+Do 80–83 in order: 82 closes the agents to callers without a token, which the
 earlier north-south labs do not send, so its README ends with the undo. Each
 gate script skips itself (exit 0) until its lab is applied, so `make verify`
 stays usable. `make reset-agents` puts both agents back exactly as the chart

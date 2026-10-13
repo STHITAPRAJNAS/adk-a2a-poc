@@ -299,12 +299,14 @@ hands-on path that runs these two agents on Kubernetes with a service mesh and
 three different gateways, to make the east-west/north-south distinction
 something you can measure rather than read about. **[`mac-lab/`](mac-lab/)** is
 the same path for an Apple Silicon Mac (Docker Desktop, no GPU node). Both end
-with labs 80–83, **production hardening**: a paused task that survives its pod
+with labs 80–85, **production hardening**: a paused task that survives its pod
 being deleted, `CancelTask` that reaches the next hop, the user's identity
-carried across a hop by RFC 8693 token exchange, and one trace spanning both
-agents. Each is an opt-in switch on these same servers (`servers/hardening.py`),
-off by default, covered by `tests/test_production.py` and driven step by step
-with `scripts/a2a_prod_probe.py`.
+carried across a hop by RFC 8693 token exchange, one trace spanning both
+agents, two replicas where subscribe and cancel reach the pod that runs the
+task, and a delegation loop that is refused instead of followed. Each is an
+opt-in switch on these same servers (`servers/hardening.py`), off by default,
+covered by `tests/test_production.py` and `tests/test_replicas_and_loops.py`,
+and driven step by step with the probes in `scripts/`.
 
 **[`agui/`](agui/)** puts the concierge behind a browser front end that speaks
 **AG-UI**, runs it with two replicas on the lab cluster, and reproduces

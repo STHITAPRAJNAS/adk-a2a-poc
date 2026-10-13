@@ -1,7 +1,7 @@
 # A2A Proving Ground
 
 An interactive website for learning the **Agent2Agent (A2A) protocol, specification 1.0**, by
-driving it. Twenty-eight lessons in eight tracks, each with the spec's rules in plain language, an animated lab you
+driving it. Thirty-one lessons in eight tracks, each with the spec's rules in plain language, an animated lab you
 operate, a **wire inspector** that shows the exact HTTP start line, headers and JSON body of every
 exchange, and a short quiz.
 
@@ -109,6 +109,9 @@ Then open http://localhost:8765/#fe-live and press **Connect**. The agents accep
 | | Identity across hops | No token vs forwarding the user's token vs **RFC 8693 exchange**; audience check on/off and a replay attacker; be the token service (`invalid_client` / `invalid_grant` / `invalid_target` / `invalid_scope`) |
 | | One trace across agents | Animated trace waterfall with propagation off (two traces) and on (one); a working `traceparent` decoder and forwarder |
 | | Remote agents are untrusted input | Prompt injection, false success, bad payloads vs layered defences (data not instructions, validation, policy, out-of-band checks, humans) |
+| | Two replicas, one task | A shared task store, two pods behind a Service: `SubscribeToTask` on the other pod gets a snapshot then silence, `CancelTask` there is **resurrected** by the owner; owner forwarding on/off; the fixes compared (this repo's `A2A_OWNER_ROUTING`, lab 84) |
+| | Chains, loops and who to call | Wire a three-agent graph and send one request: a delegation loop opening task after task vs the hop guard refusing the cycle or the depth with a named path (`A2A_MAX_HOPS`, lab 85); choosing among three candidate cards by requirements and preference |
+| | Testing agents | Card contract, wire behaviour with a scripted model, conformance, production failure modes; a working **stream checker**: paste your agent's SSE output (or pick a sample) and it checks envelopes, task ids, terminal-state rules, stream endings, artifact closure and the 0.3 shape |
 | Front ends | From a screen to an agent | Four architectures (browser speaks A2A, backend-for-frontend, AG-UI, ADK's own API) with their trade-offs; a CORS preflight simulator, including the `["*"]` + credentials trap this repo had |
 | | Streaming into a page | Why not `EventSource`; a **real SSE parser** fed at any chunk size vs a naive one; tab reloads (`GetTask` + `SubscribeToTask`) and why aborting a fetch isn't `CancelTask` |
 | | Approvals and sign-ins in the UI | An approval card generated from the pending call's arguments; function-response vs plain-text answers; `AUTH_REQUIRED` as an OAuth popup |
@@ -116,7 +119,7 @@ Then open http://localhost:8765/#fe-live and press **Connect**. The agents accep
 | | Agent output in the browser | A **real allowlist sanitizer** against `onerror`, `javascript:` links, data-leaking images and fake login forms, previewed in a sandboxed iframe |
 | | Drive your own agents | **Live**: this page becomes an A2A client of your local concierge — card, stream, approval form, job polling, completion, cancel |
 | Mastery | The proving ground | A full production deploy end to end with **eight injectable faults**, two of which a good client self-heals |
-| | Final checkpoint | Nineteen questions across every track, progress table, cheat sheet |
+| | Final checkpoint | Twenty-two questions across every track, progress table, cheat sheet |
 
 Colour means the same thing everywhere: **cobalt** client agent, **spruce** remote agent,
 **amber** gateway / proxy, **plum** authorization server, **teal** registry or store. Task states

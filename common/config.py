@@ -83,6 +83,15 @@ class Settings:
     cancel_propagation: bool
     #: Carry W3C ``traceparent`` across the A2A hop, in and out.
     trace_propagation: bool
+    #: Replicas (lab 84): forward SubscribeToTask / CancelTask to the pod that
+    #: runs the task. Needs TASK_STORE_URI on a database every replica reaches.
+    owner_routing: bool
+    #: Loops (lab 85): refuse a request whose delegation trail already holds
+    #: this agent, or is longer than this many hops. 0 = off.
+    max_hops: int
+    #: Turn a downstream agent's JSON-RPC error into the answer the user sees,
+    #: instead of ADK's empty COMPLETED. Defaults to on with A2A_MAX_HOPS.
+    surface_downstream_errors: bool
     #: Inbound auth on the A2A endpoint: ``off`` or ``jwt``.
     agent_auth: str
     #: What this agent sends downstream: ``none``, ``passthrough`` (the
@@ -197,6 +206,11 @@ def get_settings() -> Settings:
         session_service_uri=os.environ.get("SESSION_SERVICE_URI", "").strip() or None,
         cancel_propagation=_env_bool("CANCEL_PROPAGATION", False),
         trace_propagation=_env_bool("TRACE_PROPAGATION", False),
+        owner_routing=_env_bool("A2A_OWNER_ROUTING", False),
+        max_hops=_env_int("A2A_MAX_HOPS", 0),
+        surface_downstream_errors=_env_bool(
+            "SURFACE_DOWNSTREAM_ERRORS", _env_int("A2A_MAX_HOPS", 0) > 0
+        ),
         agent_auth=_env("AGENT_AUTH", "off").strip().lower(),
         downstream_auth=_env("DOWNSTREAM_AUTH", "none").strip().lower(),
         sts_url=_env("STS_URL", "http://127.0.0.1:8010").rstrip("/"),

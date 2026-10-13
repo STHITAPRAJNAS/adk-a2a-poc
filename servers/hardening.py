@@ -13,6 +13,11 @@ CANCEL_PROPAGATION     CancelTask reaches the next hop             81
 AGENT_AUTH=jwt         the A2A endpoint needs a bearer token       82
 DOWNSTREAM_AUTH        what token goes to the next hop             82
 TRACE_PROPAGATION      one trace across the hop                    83
+A2A_OWNER_ROUTING      subscribe/cancel reach the pod that runs    84
+                       the task, with several replicas
+A2A_MAX_HOPS           a delegation loop is refused, not followed  85
+SURFACE_DOWNSTREAM_    a downstream refusal reaches the user as    85
+  ERRORS               text (on by default with A2A_MAX_HOPS)
 =====================  ==========================================  ========
 """
 
@@ -57,12 +62,25 @@ def before_app(
     *,
     downstream_cards: dict[str, str] | None = None,
     release_hooks: list[Any] | None = None,
+    port: int | None = None,
 ) -> None:
     """Things that must happen before ``get_fast_api_app`` builds the routes."""
     if settings.cancel_propagation:
         from common import cancellation
 
         cancellation.install(downstream_cards=downstream_cards, release_hooks=release_hooks)
+    if settings.owner_routing:
+        import logging
+
+        if not settings.task_store_uri:
+            logging.getLogger("servers").warning(
+                "A2A_OWNER_ROUTING needs TASK_STORE_URI on a shared database; ignoring it"
+            )
+        else:
+            from common import task_ownership
+
+            # After cancellation.install: it wraps whatever executor is current.
+            task_ownership.install(settings.task_store_uri, port=port or 8000)
 
 
 def after_app(app: Any, settings: Settings, *, agent_name: str) -> None:
@@ -96,9 +114,27 @@ def after_app(app: Any, settings: Settings, *, agent_name: str) -> None:
                 realm=agent_name,
             )
         )
+    if settings.max_hops:
+        # After auth: an unauthenticated caller is refused before its trail is read.
+        import os
+
+        from common.hops import HopGuardMiddleware
+
+        # The trail names deployed agents, not codebases: two deployments of
+        # the same app are two agents. A2A_AGENT_ID tells them apart.
+        agent_id = os.environ.get("A2A_AGENT_ID", "").strip() or agent_name
+        app.user_middleware.append(
+            Middleware(HopGuardMiddleware, agent=agent_id, max_hops=settings.max_hops)
+        )
+    if settings.owner_routing and settings.task_store_uri:
+        from common.task_ownership import OwnerRoutingMiddleware
+
+        # Innermost: forward only requests that passed every check above. The
+        # owner checks the forwarded request again with the same headers.
+        app.user_middleware.append(Middleware(OwnerRoutingMiddleware))
 
 
-def describe(settings: Settings) -> list[str]:
+def describe(settings: Settings, *, port: int | None = None) -> list[str]:
     """One line per switch that is on, for the startup banner."""
     from common.tracing import otel_export_enabled
 
@@ -117,4 +153,15 @@ def describe(settings: Settings) -> list[str]:
         lines.append("traces       exported over OTLP")
     if settings.trace_propagation:
         lines.append("traces       traceparent carried across the hop")
+    if settings.owner_routing and settings.task_store_uri:
+        from common.task_ownership import advertise_url
+
+        lines.append(
+            "replicas     subscribe/cancel forwarded to the owning pod "
+            f"({advertise_url(port or 8000)})"
+        )
+    if settings.max_hops:
+        lines.append(f"loops        refused; at most {settings.max_hops} hops")
+    if settings.surface_downstream_errors:
+        lines.append("errors       a downstream refusal is shown to the user")
     return lines

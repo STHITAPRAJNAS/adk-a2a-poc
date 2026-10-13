@@ -1,0 +1,53 @@
+# Lab 84 — one database every replica of the specialist reaches: the A2A task
+# store, the ADK session store and the task-ownership table.
+#
+# The password comes from the a2a-db Secret, created in the README with
+# openssl; nothing secret is in this file. emptyDir: a lab database that
+# forgets everything when its pod is deleted.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a2a-postgres
+  namespace: agents
+  labels: {app: a2a-postgres}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: a2a-postgres}
+  template:
+    metadata:
+      labels: {app: a2a-postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - {name: pg, containerPort: 5432}
+          env:
+            - {name: POSTGRES_USER, value: a2a}
+            - {name: POSTGRES_DB, value: a2a}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: a2a-db, key: password}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "a2a", "-d", "a2a"]
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: a2a-postgres
+  namespace: agents
+spec:
+  selector: {app: a2a-postgres}
+  ports:
+    - {name: pg, port: 5432, targetPort: pg}
