@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- head:begin -->
+<title>MCP Proving Ground</title>
+<meta name="description" content="Interactive, animated labs for the Model Context Protocol (MCP), revision 2026-07-28: stateless requests, tools, resources, prompts, multi round-trip requests, elicitation, Streamable HTTP, stdio, subscriptions, OAuth and the attacks specific to tool-using models.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 34 22%27%3E%3Crect x=%271.5%27 y=%275.5%27 width=%2711%27 height=%2711%27 rx=%273%27 fill=%27%232a4fb8%27/%3E%3Ccircle cx=%2728%27 cy=%275%27 r=%274%27 fill=%27%230a7a5c%27/%3E%3Ccircle cx=%2728%27 cy=%2717%27 r=%274%27 fill=%27%230a7a5c%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&amp;family=JetBrains+Mono:wght@400;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400..650;1,8..60,400&amp;display=swap">
+<link rel="stylesheet" href="css/proving-ground.css">
+<!-- head:end -->
+</head>
+<body>
+<!-- body:begin -->
+<header class="topbar">
+  <a class="brand" href="#home" aria-label="MCP Proving Ground, overview">
+    <svg viewBox="0 0 34 22" aria-hidden="true">
+      <line x1="7" y1="11" x2="27" y2="5" style="stroke:var(--rule-strong)" stroke-width="1.5"></line>
+      <line x1="7" y1="11" x2="27" y2="17" style="stroke:var(--rule-strong)" stroke-width="1.5"></line>
+      <rect x="1.5" y="5.5" width="11" height="11" rx="3" style="fill:var(--client)"></rect>
+      <circle cx="28" cy="5" r="4" style="fill:var(--server)"></circle>
+      <circle cx="28" cy="17" r="4" style="fill:var(--server)"></circle>
+    </svg>
+    <span class="brand-name">MCP Proving Ground<small>SPEC 2026-07-28 · INTERACTIVE LABS</small></span>
+  </a>
+  <span class="topbar-spacer"></span>
+  <div class="speed" id="pg-speed"><span>Animation</span></div>
+  <div class="progress-meter" id="pg-progress" aria-label="Lessons passed"><span>0 / 0 passed</span><div class="bar"><i></i></div></div>
+  <a class="spec-link" href="https://modelcontextprotocol.io/specification/2026-07-28" target="_blank" rel="noopener">Spec&nbsp;↗</a>
+</header>
+<div class="shell">
+  <nav class="rail" id="pg-rail" aria-label="Syllabus"></nav>
+  <main class="main" id="pg-main">
+    <noscript><p class="result warn">The labs are interactive and need JavaScript. The lesson text is in js/lessons/*.js if you want to read it raw.</p></noscript>
+  </main>
+</div>
+<script src="js/core.js"></script>
+<script src="js/spec.js"></script>
+<script src="js/kit.js"></script>
+<script src="js/lessons/01-foundations.js"></script>
+<script src="js/lessons/02-server.js"></script>
+<script src="js/lessons/03-asking.js"></script>
+<script src="js/lessons/04-transports.js"></script>
+<script src="js/lessons/05-security.js"></script>
+<script src="js/lessons/06-production.js"></script>
+<script src="js/lessons/07-mastery.js"></script>
+<script src="js/explain.js"></script>
+<script src="js/home.js"></script>
+<script>window.PG.start();</script>
+<!-- body:end -->
+</body>
+</html>
