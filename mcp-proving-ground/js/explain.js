@@ -281,6 +281,27 @@
     ],
   };
 
+  E.tasks = {
+    plain: `<p>Some jobs take far too long to keep a connection open: a 40-minute scan, a deployment, a batch import. With the <b>Tasks</b> extension, the server answers "I've started it, here's your ticket number" instead of the result. The client checks back with the ticket (<code>tasks/get</code>) every so often, answers any question the job asks (<code>tasks/update</code>), and can ask to stop it (<code>tasks/cancel</code>).</p>
+      <p>Because the ticket is stored on both sides, nothing breaks if the client restarts or the network drops. In the 2026-07-28 spec, tasks are an official <b>extension</b>: both sides must say they support it.</p>`,
+    terms: [
+      ["task", "A stored record of a long-running job, with an id and a status."],
+      ["CreateTaskResult", "The ticket a server returns instead of a result: <code>resultType: \"task\"</code>, <code>taskId</code>, <code>pollIntervalMs</code>…"],
+      ["polling", "Asking \"is it done yet?\" at an interval, with <code>tasks/get</code>."],
+      ["status", "<code>working</code>, <code>input_required</code>, then one of <code>completed</code>, <code>failed</code>, <code>cancelled</code>."],
+      ["extension", "An optional add-on to MCP, switched on through <code>capabilities.extensions</code>."],
+      ["cooperative cancel", "Asking to stop; the server may still finish if the work is already done."],
+    ],
+    tryThis: [
+      "Press <b>tools/call run_compliance_scan</b> and open the CreateTaskResult in the wire.",
+      "Press <b>tasks/get</b> until the job asks about a waiver, then answer it and keep polling.",
+      "Press <b>Restart the client</b> mid-scan, then <b>tasks/get</b>: polling just resumes.",
+      "Start again and press <b>tasks/cancel</b>; then try it with <b>Work finishes before a cancel lands</b> on.",
+      "Turn off <b>Client declares io.modelcontextprotocol/tasks</b> and start: -32021.",
+      "Sort the six cards into statuses in the second lab.",
+    ],
+  };
+
   E.subscriptions = {
     plain: `<p>To hear about changes ("a new tool appeared", "this runbook was edited"), the client opens one long-lived request saying exactly which changes it wants. The server confirms, then sends just those, until someone closes it.</p>
       <p>This pairs with caching: a "tools changed" message tells the client to throw away its saved list right now instead of waiting for it to expire.</p>`,
@@ -411,8 +432,8 @@
   };
 
   E.exam = {
-    plain: `<p>Twenty questions covering the whole course. Each explanation names the lesson to go back to. The tables in the lab are a quick reference for error codes and for what 2026-07-28 removed.</p>`,
+    plain: `<p>Twenty-one questions covering the whole course. Each explanation names the lesson to go back to. The tables in the lab are a quick reference for error codes and for what 2026-07-28 removed.</p>`,
     terms: [],
-    tryThis: ["Answer all twenty and press <b>Check answers</b> at the bottom."],
+    tryThis: ["Answer all twenty-one and press <b>Check answers</b> at the bottom."],
   };
 })();

@@ -97,7 +97,7 @@
     main.appendChild(h("section", { class: "home-section" }, h("h2", { text: "Which spec, and what about older servers" }),
       h("div", { class: "grid2" },
         h("div", { class: "note spec" }, h("span", { class: "note-label", text: "Revision 2026-07-28" }),
-          h("span", { html: "The labs follow the current revision: no <code>initialize</code>, no sessions, <code>_meta</code> on every request, <code>server/discover</code>, Multi Round-Trip Requests, <code>subscriptions/listen</code>, and required <code>ttlMs</code>/<code>cacheScope</code> on lists." })),
+          h("span", { html: "The labs follow the current revision: no <code>initialize</code>, no sessions, <code>_meta</code> on every request, <code>server/discover</code>, Multi Round-Trip Requests, <code>subscriptions/listen</code>, required <code>ttlMs</code>/<code>cacheScope</code> on lists, and long-running work through the official Tasks extension." })),
         h("div", { class: "note" }, h("span", { class: "note-label", text: "Legacy era" }),
           h("span", { html: "Most servers in the wild still speak 2025-11-25 or earlier. Where it matters, a lab lets you switch to the legacy behaviour (handshake, <code>Mcp-Session-Id</code>, server-to-client requests) so you can see what changed and why." })))));
 

@@ -206,7 +206,7 @@
     track: "mastery",
     title: "Final exam",
     short: "Exam",
-    thesis: "Twenty questions across the whole course. Pass them all to complete the proving ground.",
+    thesis: "Twenty-one questions across the whole course. Pass them all to complete the proving ground.",
     refs: "MCP specification 2026-07-28",
     brief: `
       <h2>Before you start</h2>
@@ -270,6 +270,9 @@
       { q: "An SSE response stream breaks mid-call. The client:",
         opts: ["Resumes with Last-Event-ID", "Re-issues the request with a new id", "Waits for the subscription stream", "Calls tasks/result"],
         a: 1, why: "Progress & cancel." },
+      { q: "A tools/call answers with resultType \"task\". What does the client do next?",
+        opts: ["Wait on the open connection", "Poll tasks/get with the taskId, respecting pollIntervalMs", "Call tasks/result", "Retry tools/call with requestState"],
+        a: 1, why: "Tasks extension: the server returned a handle; poll it. tasks/result was removed with the 2025-11-25 design." },
       { q: "The first message on a subscriptions/listen stream is:",
         opts: ["notifications/subscriptions/acknowledged", "A progress notification", "The result", "A ping"],
         a: 0, why: "Subscriptions." },

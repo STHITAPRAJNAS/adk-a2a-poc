@@ -331,6 +331,193 @@
   });
 
   /* ════════════════════════════════════════════════════════════════════
+   * Lesson: Tasks (the io.modelcontextprotocol/tasks extension)
+   * ════════════════════════════════════════════════════════════════════ */
+  const TASKS_EXT = "io.modelcontextprotocol/tasks";
+  PG.lesson({
+    id: "tasks",
+    track: "transports",
+    title: "Tasks: hand back a ticket, let the client poll",
+    short: "Tasks extension",
+    thesis: "For work that takes minutes or hours, a server can answer tools/call with a task handle (resultType \"task\") instead of a result. The client polls tasks/get, answers questions with tasks/update, and can cancel with tasks/cancel. In 2026-07-28 this is an official extension, not part of the core protocol.",
+    refs: "MCP extension io.modelcontextprotocol/tasks (SEP-2663, final; modelcontextprotocol/ext-tasks) · Changelog 2026-07-28 item 6 · 2025-11-25 Tasks (experimental)",
+    brief: `
+      <h2>Where tasks live now</h2>
+      <p>2025-11-25 added tasks as an <em>experimental</em> core feature. 2026-07-28 moved them out of the core into the official extension <code>io.modelcontextprotocol/tasks</code> and redesigned them. The two are <strong>not wire-compatible</strong>. Like every extension, both sides opt in through <code>capabilities.extensions</code>: the client in each request's <code>clientCapabilities</code>, the server in <code>server/discover</code>.</p>
+      <h2>How it works</h2>
+      <ol>
+        <li>The client sends <code>tools/call</code> as usual, declaring the extension. (Only <code>tools/call</code> supports tasks so far.)</li>
+        <li>The <strong>server decides</strong>, per request, whether to answer normally or with a <code>CreateTaskResult</code>: <code>resultType: "task"</code>, a <code>taskId</code>, <code>status</code>, <code>createdAt</code>, <code>lastUpdatedAt</code>, <code>ttlMs</code>, <code>pollIntervalMs</code>. The task must already exist durably when that answer is sent.</li>
+        <li>The client polls <code>tasks/get {taskId}</code> no faster than <code>pollIntervalMs</code>.</li>
+        <li>Status <code>input_required</code> comes with <code>inputRequests</code> (same shapes as MRTR). The client answers with <code>tasks/update {taskId, inputResponses}</code>, which returns an empty acknowledgement, and keeps polling.</li>
+        <li>Terminal states: <code>completed</code> with <code>result</code> (exactly what <code>tools/call</code> would have returned, even if <code>isError: true</code>), <code>failed</code> with a JSON-RPC <code>error</code>, or <code>cancelled</code>.</li>
+      </ol>
+      <div class="table-wrap"><table class="tbl"><thead><tr><th>Method</th><th>Answer</th><th>Notes</th></tr></thead><tbody>
+        <tr><td><code>tasks/get</code></td><td>the task, with <code>inputRequests</code>, <code>result</code> or <code>error</code> by status</td><td>a pure read: safe to retry or cache</td></tr>
+        <tr><td><code>tasks/update</code></td><td>empty ack</td><td>eventually consistent; unknown or already-answered keys are ignored</td></tr>
+        <tr><td><code>tasks/cancel</code></td><td>empty ack</td><td>cooperative: the task may still end <code>completed</code>. Never <code>notifications/cancelled</code> for tasks</td></tr>
+        <tr><td><code>notifications/tasks</code></td><td>the full task state</td><td>optional push, via <code>subscriptions/listen</code> with <code>notifications.taskIds</code></td></tr>
+      </tbody></table></div>
+      <div class="note spec"><span class="note-label">Rules worth remembering</span>Never return a task to a client that didn't declare the extension on <em>that</em> request; if the server can't do the work without one, it answers <code>-32021</code> naming the extension. Unknown or expired <code>taskId</code>: <code>-32602</code>. Over HTTP, task requests carry <code>Mcp-Name: &lt;taskId&gt;</code> so a load balancer can route them to the instance holding the task. Clients should store task ids durably so they can resume polling after a restart.</div>
+      <div class="note"><span class="note-label">Tasks and MRTR together</span>A tool can first ask questions with <code>input_required</code> (MRTR) and only then hand back a task. The two keep separate <code>inputRequests</code> keys.</div>
+      <div class="note"><span class="note-label">What changed from 2025-11-25</span>The client no longer asks for a task (the <code>task</code> parameter on <code>tools/call</code> and tools' <code>execution.taskSupport</code> are gone); the server decides. <code>tasks/result</code> (blocking) and <code>tasks/list</code> are removed; <code>tasks/update</code> is new; <code>tasks/cancel</code> is now a plain acknowledgement.</div>
+      <div class="note ours"><span class="note-label">Same idea in A2A</span>An A2A <code>Task</code> plays the same role between agents: an id, states including <code>INPUT_REQUIRED</code>, and <code>GetTask</code> to poll. If you know one, you know most of the other.</div>`,
+    lab: function (bench, api) {
+      const a = PG.lab(bench, "A 40-minute compliance scan", "Lab · CreateTaskResult · tasks/get · tasks/update · tasks/cancel");
+      let declared = true, cancelLate = false;
+      const stage = PG.stage(a.body, {
+        actors: [
+          { id: "user", role: "user", label: "You", sub: "", x: 12, y: 18 },
+          { id: "client", role: "client", label: "MCP client", sub: "task ids on disk", x: 14, y: 76 },
+          { id: "server", role: "server", label: "release-tools", sub: "", x: 56, y: 50 },
+          { id: "db", role: "registry", label: "Task store", sub: "", x: 88, y: 50, glyph: "D" },
+        ],
+        links: [["user", "client"], ["client", "server"], ["server", "db"]],
+      });
+      const wire = PG.wire(a.body);
+      const chip = h("span", { class: "chip mono", text: "no task" });
+      const verdict = h("div", { class: "result", text: "Start the scan, then poll it." });
+      let task = null, id = 0, polls = 0, crashed = false;
+      const startBtn = h("button", { class: "btn primary", type: "button", text: "tools/call run_compliance_scan" });
+      const pollBtn = h("button", { class: "btn", type: "button", text: "tasks/get" });
+      const cancelBtn = h("button", { class: "btn", type: "button", text: "tasks/cancel" });
+      const crashBtn = h("button", { class: "btn", type: "button", text: "Restart the client" });
+      const answer = h("div", { class: "stack" });
+      function now(offsetMin) { return new Date(Date.UTC(2026, 9, 15, 9, offsetMin || 0, 0)).toISOString().replace(".000", ""); }
+      function taskView(extra) {
+        return Object.assign({ taskId: task.id, status: task.status, statusMessage: task.msg, createdAt: now(0), lastUpdatedAt: now(task.min), ttlMs: 7200000, pollIntervalMs: 30000 }, extra || {});
+      }
+      function paint() { chip.textContent = task ? task.id.slice(0, 13) + "… · " + task.status : "no task"; chip.className = "chip mono " + (!task ? "" : task.status === "completed" ? "ok" : task.status === "input_required" ? "warn" : task.status === "cancelled" || task.status === "failed" ? "err" : "info"); }
+      async function start() {
+        wire.clear(); answer.innerHTML = ""; polls = 0; task = null; paint();
+        id++;
+        const caps = declared ? { extensions: (function () { const e = {}; e[TASKS_EXT] = {}; return e; })() } : {};
+        const args = { service: "checkout-api", version: "2.14.0" };
+        if (!(await stage.send("client", "server", "tools/call"))) return;
+        wire.add({ actor: "client", label: "tools/call run_compliance_scan · caps " + (declared ? "with tasks extension" : "without it"), http: SPEC.post("tools/call", "run_compliance_scan"), body: SPEC.rpc("tools/call", { name: "run_compliance_scan", arguments: args }, id, { caps: caps }), hl: [SPEC.K.caps] });
+        if (!declared) {
+          await stage.send("server", "client", "-32021", { tone: "err" });
+          const req = { extensions: {} }; req.extensions[TASKS_EXT] = {};
+          wire.add({ kind: "in", actor: "server", label: "-32021 · needs " + TASKS_EXT, status: "-32021", http: SPEC.res(400), body: SPEC.err(id, -32021, "Missing required client capability", { requiredCapabilities: req }), open: true });
+          PG.setResult(verdict, "warn", "The scan takes 40 minutes, far longer than any connection should stay open, and this client can't take a task. A server that can't do the job without one says which extension it needs. (A server that could finish quickly would simply answer normally.)");
+          return;
+        }
+        await stage.send("server", "db", "store task");
+        await stage.send("db", "server", "stored");
+        task = { id: PG.uuid(), status: "working", msg: "Scan queued", min: 0, step: 0, cancelReq: false };
+        await stage.send("server", "client", "resultType: task", { tone: "server" });
+        stage.badge("client", "taskId saved");
+        wire.add({ kind: "in", actor: "server", label: "CreateTaskResult · " + task.id.slice(0, 8) + "… · working", status: "200", http: SPEC.res(200), body: SPEC.ok(id, Object.assign({ resultType: "task" }, taskView())), hl: ["resultType", "taskId", "pollIntervalMs"], open: true,
+          note: "Not the scan result: a ticket. The server wrote the task to its store <b>before</b> answering, so a tasks/get for this id already works." });
+        paint();
+        PG.setResult(verdict, "info", "The connection is closed and nothing is held open. Press <b>tasks/get</b> to check on it (a real client waits <code>pollIntervalMs</code>, 30 s, between polls).");
+      }
+      async function poll() {
+        if (!task) return PG.toast("Start the scan first");
+        if (crashed) { crashed = false; stage.badge("client", "taskId read from disk"); }
+        id++; polls++;
+        if (!(await stage.send("client", "server", "tasks/get"))) return;
+        wire.add({ actor: "client", label: "tasks/get " + task.id.slice(0, 8) + "…", http: SPEC.post("tasks/get", task.id), body: SPEC.rpc("tasks/get", { taskId: task.id }, id), hl: ["taskId"] });
+        await stage.send("server", "db", "read");
+        await stage.send("db", "server", task.status);
+        /* advance the simulated job between polls */
+        if (task.status === "working") {
+          task.step++; task.min += 10;
+          if (task.cancelReq) {
+            if (cancelLate) { task.status = "completed"; task.msg = "Finished before the cancel took effect"; }
+            else { task.status = "cancelled"; task.msg = "Cancelled at the client's request"; }
+          } else if (task.step === 2) { task.status = "input_required"; task.msg = "Control PCI-4 needs a human decision"; task.key = "pci4_waiver_" + PG.hex(2); }
+          else if (task.step >= 4) { task.status = "completed"; task.msg = "3 of 3 controls passed"; }
+          else task.msg = "Scanning: " + (task.step * 25) + "%";
+        }
+        let extra = {};
+        if (task.status === "input_required") extra.inputRequests = (function () { const r = {}; r[task.key] = { method: "elicitation/create", params: { mode: "form", message: "PCI-4 (card data at rest) flagged a legacy table. Accept a 30-day waiver?", requestedSchema: { type: "object", properties: { accept_waiver: { type: "boolean" }, ticket: { type: "string", title: "Change ticket" } }, required: ["accept_waiver"] } } }; return r; })();
+        if (task.status === "completed" && task.refused) extra.result = { content: [{ type: "text", text: "Scan stopped: the PCI-4 waiver was refused, so checkout-api 2.14.0 is not compliant." }], isError: true };
+        else if (task.status === "completed") extra.result = { content: [{ type: "text", text: "Compliance scan for checkout-api 2.14.0: 3 of 3 controls passed" + (task.waiver ? " (PCI-4 under waiver " + task.waiver + ")" : "") + "." }], structuredContent: { passed: 3, failed: 0 }, isError: false };
+        await stage.send("server", "client", task.status, { tone: task.status === "input_required" ? "proxy" : task.status === "cancelled" ? "err" : undefined });
+        wire.add({ kind: "in", actor: "server", label: "task · " + task.status + (task.msg ? " · " + task.msg : ""), status: task.status === "input_required" ? "input_required" : "200", http: SPEC.res(200), body: SPEC.ok(id, taskView(extra)), hl: ["status", "inputRequests", "result"] });
+        paint();
+        answer.innerHTML = "";
+        if (task.status === "input_required") {
+          PG.setResult(verdict, "warn", "The task paused for a person. The question rides in <code>inputRequests</code> on the poll, under a key that is never reused. Answer it below; that sends <code>tasks/update</code>.");
+          answer.appendChild(h("div", { class: "bubble gate" }, h("b", { text: "release-tools asks (task " + task.id.slice(0, 8) + "…):" }), h("div", { text: "Accept a 30-day waiver for PCI-4?" }),
+            h("div", { class: "row" }, h("button", { class: "btn primary", type: "button", text: "Accept waiver", onclick: function () { update(true); } }), h("button", { class: "btn", type: "button", text: "Refuse", onclick: function () { update(false); } }))));
+        } else if (task.status === "completed") {
+          stage.badge("client", null);
+          PG.setResult(verdict, task.cancelReq || task.refused ? "warn" : "ok", task.refused
+            ? "You refused the waiver, so the job ended with a tool-level error. Note the status: <code>completed</code> with <code>isError: true</code> in <code>result</code>, not <code>failed</code>."
+            : task.cancelReq
+            ? "You asked to cancel, the server acknowledged, and the task still <b>completed</b>: the work finished first. Cancellation is cooperative; the final status is what counts."
+            : "Done after " + polls + " polls and about " + task.min + " simulated minutes. <code>result</code> is exactly what <code>tools/call</code> would have returned.");
+        } else if (task.status === "cancelled") {
+          stage.badge("client", null);
+          PG.setResult(verdict, "info", "Cancelled. Terminal: the status won't change again.");
+        } else PG.setResult(verdict, "info", task.msg + ". Keep polling.");
+      }
+      async function update(ok) {
+        id++;
+        answer.innerHTML = "";
+        const resp = {}; resp[task.key] = ok ? { action: "accept", content: { accept_waiver: true, ticket: "CHG-2207" } } : { action: "decline" };
+        await stage.send("client", "server", "tasks/update");
+        wire.add({ actor: "client", label: "tasks/update · " + (ok ? "accept" : "decline"), http: SPEC.post("tasks/update", task.id), body: SPEC.rpc("tasks/update", { taskId: task.id, inputResponses: resp }, id), hl: ["inputResponses"] });
+        await stage.send("server", "client", "ack");
+        wire.add({ kind: "in", actor: "server", label: "empty acknowledgement", status: "200", http: SPEC.res(200), body: SPEC.ok(id, {}) });
+        if (ok) { task.status = "working"; task.msg = "Resuming with waiver"; task.waiver = "CHG-2207"; }
+        else { task.status = "completed"; task.msg = "Stopped: waiver refused"; task.refused = true; }
+        PG.setResult(verdict, "info", "The ack only means \"received\". The status changes on the server's side; poll again to see it.");
+      }
+      async function cancel() {
+        if (!task || /completed|cancelled|failed/.test(task.status)) return PG.toast("No running task");
+        id++;
+        await stage.send("client", "server", "tasks/cancel");
+        wire.add({ actor: "client", label: "tasks/cancel", http: SPEC.post("tasks/cancel", task.id), body: SPEC.rpc("tasks/cancel", { taskId: task.id }, id) });
+        await stage.send("server", "client", "ack");
+        wire.add({ kind: "in", actor: "server", label: "empty acknowledgement (not a promise)", status: "200", http: SPEC.res(200), body: SPEC.ok(id, {}) });
+        task.cancelReq = true;
+        if (task.status === "input_required") task.status = "working";
+        PG.setResult(verdict, "info", "Acknowledged. That is a signal, not a state change: poll to see whether it actually stopped.");
+      }
+      function crash() {
+        if (!task) return PG.toast("Start the scan first");
+        crashed = true;
+        stage.badge("client", "restarting…");
+        wire.add({ kind: "note", label: "Client process restarted. Nothing was open, so nothing broke: the task id is in durable storage and polling resumes." });
+        PG.setResult(verdict, "ok", "Compare a dropped SSE stream in the previous lesson, which loses the request. A task survives the client, the network and a load balancer change, as long as the task store does.");
+      }
+      startBtn.addEventListener("click", start);
+      pollBtn.addEventListener("click", poll);
+      cancelBtn.addEventListener("click", cancel);
+      crashBtn.addEventListener("click", crash);
+      a.body.insertBefore(h("div", { class: "stack" },
+        h("div", { class: "row" },
+          PG.switch("tk-decl", "Client declares " + TASKS_EXT, true, function (v) { declared = v; }),
+          PG.switch("tk-late", "Work finishes before a cancel lands", false, function (v) { cancelLate = v; })),
+        h("div", { class: "row" }, startBtn, pollBtn, cancelBtn, crashBtn, chip), answer, verdict), stage.el);
+
+      const b = PG.lab(bench, "Which status, which field?", "Lab · completed vs failed");
+      PG.sorter(b.body, [
+        { t: "The tool returned <code>isError: true</code> (“version not found”)", a: "completed", why: "A tool error is still a result. <code>completed</code>, with the CallToolResult (and its <code>isError</code>) in <code>result</code>." },
+        { t: "The server hit a JSON-RPC error while running the job (-32603)", a: "failed", why: "Protocol-level faults use <code>failed</code>, with the JSON-RPC <code>error</code> field." },
+        { t: "You sent tasks/cancel and the server stopped the work", a: "cancelled", why: "Terminal; no result or error field." },
+        { t: "You sent tasks/cancel but the scan had already finished", a: "completed", why: "Cancellation is cooperative. The real outcome wins." },
+        { t: "The scan is waiting for a waiver decision", a: "input_required", why: "With <code>inputRequests</code>; answer via <code>tasks/update</code>." },
+        { t: "The scan is 50% through", a: "working", why: "Optionally with a <code>statusMessage</code> like “Scanning: 50%”." },
+      ], ["working", "input_required", "completed", "failed", "cancelled"]);
+    },
+    quiz: [
+      { q: "Who decides that a tools/call becomes a task in 2026-07-28?",
+        opts: ["The client, with a task parameter", "The server, per request, if the client declared the extension", "The tool's execution.taskSupport field", "The gateway"],
+        a: 1, why: "Server-directed. The task parameter and execution.taskSupport belonged to the 2025-11-25 experimental design." },
+      { q: "How does a client give a running task the answer it asked for?",
+        opts: ["tasks/result", "Retry tools/call with inputResponses", "tasks/update with inputResponses", "notifications/tasks"],
+        a: 2, why: "tasks/update carries inputResponses keyed like the task's inputRequests; it returns an empty ack, then you poll." },
+      { q: "A tool inside a task returns isError: true. The task's status is:",
+        opts: ["failed", "completed, with the result in result", "cancelled", "input_required"],
+        a: 1, why: "failed is only for JSON-RPC errors; a tool-level error is a completed result." },
+    ],
+  });
+
+  /* ════════════════════════════════════════════════════════════════════
    * Lesson: subscriptions/listen
    * ════════════════════════════════════════════════════════════════════ */
   PG.lesson({
@@ -349,6 +536,7 @@
         <li>End: the client closes the stream (HTTP) or sends <code>notifications/cancelled</code> (stdio). A server ending it gracefully answers the listen request with a normal <code>complete</code> result (and sends <code>notifications/cancelled</code> for that id: the one thing a server may cancel). A stream that just drops means "reconnect".</li>
       </ol>
       <p>Progress and log lines never go on this stream: they belong to the response stream of their own request. A client may hold several subscriptions; the id tells them apart. After a reconnect, listen again: the server keeps no subscription state.</p>
+      <div class="note"><span class="note-label">Tasks</span>With the tasks extension, <code>notifications: {taskIds: [...]}</code> asks for <code>notifications/tasks</code>, each carrying the full task state, so the client can stop polling (see the previous lesson, <em>Tasks extension</em>).</div>
       <div class="note"><span class="note-label">Replaces</span>The legacy HTTP GET stream, <code>resources/subscribe</code> and <code>resources/unsubscribe</code>.</div>
       <div class="note"><span class="note-label">Pair with caching</span>A <code>list_changed</code> notification is the signal to throw away a cached <code>tools/list</code> before its <code>ttlMs</code> runs out.</div>`,
     lab: function (bench, api) {

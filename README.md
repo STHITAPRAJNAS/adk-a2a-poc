@@ -328,10 +328,10 @@ a live wire inspector. Run it on
 localhost with `./a2a-proving-ground/serve.sh` (Windows: `serve.ps1`); see its README.
 
 **[`mcp-proving-ground/`](mcp-proving-ground/)** is its companion for the Model
-Context Protocol, revision 2026-07-28: twenty-five animated lessons on stateless
+Context Protocol, revision 2026-07-28: twenty-six animated lessons on stateless
 requests and `server/discover`, tools, annotations, handles, resources, prompts,
 caching, Multi Round-Trip Requests, elicitation, Streamable HTTP, stdio,
-progress and cancellation, subscriptions, OAuth, token passthrough and
+progress and cancellation, the Tasks extension, subscriptions, OAuth, token passthrough and
 MCP-specific attacks, with switches that show the legacy (2025-11-25) behaviour
 where it differs. Run it with `./mcp-proving-ground/serve.sh` (port 8766).
 

@@ -1,7 +1,7 @@
 # MCP Proving Ground
 
 An interactive website for learning the **Model Context Protocol (MCP), revision 2026-07-28**, by
-driving it. Twenty-five lessons in seven tracks, each with the spec's rules in plain language, an
+driving it. Twenty-six lessons in seven tracks, each with the spec's rules in plain language, an
 animated lab you operate, a **wire inspector** that shows the exact HTTP start line, headers and
 JSON-RPC body of every message, and a short quiz.
 
@@ -62,6 +62,7 @@ Progress is kept only in your browser's `localStorage`.
 | Transports & long work | Streamable HTTP | A gateway routing on `Mcp-Name` / `Mcp-Param-Region` and the server catching header/body mismatches (-32020); base64 header values; 202 vs JSON vs SSE vs 404 |
 | | stdio | stdin / stdout / stderr panes; a banner on stdout breaking the client; cancel and shutdown |
 | | Progress and cancellation | A slow scan with progress; stop; a dropped stream re-issued with a new id and an idempotency key; timeouts with and without a hard maximum |
+| | Tasks extension | `io.modelcontextprotocol/tasks`: a 40-minute scan handed back as a task (`resultType: "task"`), polled with `tasks/get`, paused for a waiver answered with `tasks/update`, cancelled cooperatively with `tasks/cancel`, a client restart that loses nothing, -32021 without the capability; a status sorter |
 | | Subscriptions | `subscriptions/listen`, the acknowledgement, `subscriptionId`, invalidating a cached tool list; client and server endings |
 | Security | Signing in to a remote server | The OAuth flow step by step (401, Protected Resource Metadata, AS metadata, Client ID Metadata Document, PKCE, `resource`, `iss`) and five faults it catches |
 | | Scopes and passthrough | `insufficient_scope` step-up with and without the scope union; token passthrough vs the server's own upstream token |
@@ -70,7 +71,7 @@ Progress is kept only in your browser's `localStorage`.
 | | Gateways | Merged and namespaced tools, a per-tool policy, an audit log, round-robin across replicas, a shadowing server |
 | | Testing | A working **conformance checker**: paste a recorded exchange and it checks ids, `_meta`, headers, `resultType`, cache hints, tool names, MRTR rules |
 | Mastery | The full run | Sign-in to rollback with confirmation, progress and a dropped stream, on 1 or 3 replicas, in 2026-07-28 or legacy mode |
-| | Final exam | Twenty questions, an error-code table, and what 2026-07-28 removed |
+| | Final exam | Twenty-one questions, an error-code table, and what 2026-07-28 removed |
 
 Colour means the same thing everywhere: **cobalt** host / MCP client, **spruce** MCP server,
 **amber** gateway or proxy, **plum** authorization server, **teal** model or upstream API, **red**
@@ -88,6 +89,7 @@ attacker.
 - Tokens, `requestState` values and signatures are placeholders or simulated for teaching. The
   `release-tools` server and its tools are invented for the labs, modelled on this repo's
   release agent.
+- Tasks follow the final tasks extension (SEP-2663, specified in `modelcontextprotocol/ext-tasks`), not the experimental, incompatible 2025-11-25 design; the lesson lists the differences.
 - Sampling, roots and logging are shown because existing servers use them; they are deprecated.
 
 ## How it's built
