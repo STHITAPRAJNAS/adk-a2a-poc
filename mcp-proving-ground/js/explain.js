@@ -8,19 +8,41 @@
 
   /* ── Foundations ─────────────────────────────────────────────────────── */
   E.actors = {
-    plain: `<p>MCP lets an AI app use outside tools and data in a standard way. The app you use is the <b>host</b>. For every outside service it plugs in, it runs a small connector called a <b>client</b>, and the service on the other end is a <b>server</b>.</p>
-      <p>The key idea is separation. The model lives in the host. Servers never see your conversation or each other; a server only learns the exact request sent to it. Like a phone switchboard: each line connects to one place, and the operator decides what to say on each line.</p>`,
+    plain: `<p>MCP is often called "USB for AI apps". Your <b>laptop</b> is the <b>host</b>: the app you use, with the model inside it. Each <b>USB port and its driver</b> is an <b>MCP client</b>: one per device. Each <b>device you plug in</b> (a drive, a printer) is an <b>MCP server</b>: it has the tools and the data.</p>
+      <p>One rule settles every "who is who" question: <b>the side that asks is the client, the side that has the tools is the server.</b> A server can be a tiny program on your own laptop and still be the server. Servers only ever answer; they never see your conversation or each other.</p>`,
     terms: [
       ["host", "The app you use (a chat app, an IDE, an agent runtime). It holds the model, the conversation and your consent."],
       ["client", "The connector inside the host for one server. One client per server."],
       ["server", "A program that offers tools, data and prompt templates over MCP."],
       ["JSON-RPC", "The message format: requests with an <code>id</code>, replies with the same <code>id</code>, notifications with none."],
+      ["two hats", "One program in two roles, e.g. a gateway: a server to apps, a client to the servers behind it."],
     ],
     tryThis: [
       "Press the <b>Ask</b> button and follow the packets: the request goes host → client ① → release-tools.",
       "When it finishes, compare the two panels at the bottom: <b>git-server saw nothing</b>.",
       "Open a line in the wire inspector and look for anything about the conversation. There isn't any.",
-      "In the second lab, decide for each card whether the host or the server owns it.",
+      "In <b>Name the role</b>, sort eight real things (Claude Desktop, an <code>npx</code> server, ADK's McpToolset, a gateway…) into host, client or server.",
+      "In the last lab, decide for each duty whether the host or the server owns it.",
+    ],
+  };
+
+  E.finding = {
+    plain: `<p>To use a server you first need its address. There are two ways to find one. The <b>MCP Registry</b> is a public catalogue, like an app store listing without the store: it says which servers exist, who published them, and which package or URL to use. A <b>Server Card</b> is a small file a company puts on its own website saying "our MCP servers are here", found through <code>/.well-known/ai-catalog.json</code>.</p>
+      <p>Neither tells you which tools <em>you</em> can use: that always comes live from the server, after you connect and sign in.</p>`,
+    terms: [
+      ["MCP Registry", "The official public catalogue of MCP servers (in preview). Stores metadata, not code."],
+      ["server.json", "One registry entry: name, version, description, and the package or remote URL."],
+      ["namespace", "The first part of a name, like <code>io.github.alice/</code> or <code>com.example/</code>; proves who published it."],
+      ["aggregator / subregistry", "A marketplace or company catalogue that copies the registry and adds ratings or scans."],
+      ["Server Card", "A public JSON file describing one remote server: name, version, URL, supported versions."],
+      ["AI Catalog", "A list at <code>/.well-known/ai-catalog.json</code> pointing to a domain's Server Cards."],
+    ],
+    tryThis: [
+      "Press <b>Discover acme.example</b> and follow the four steps: catalog, card, server/discover, tools/list.",
+      "Turn on <b>The card is out of date</b> and run again: the client trusts the live answer.",
+      "Turn off the catalog: discovery stops, nothing else breaks.",
+      "In the registry lab, load each preset (<b>Someone else's namespace</b>, <b>Package doesn't point back</b>…) and read which check fails.",
+      "Sort the six questions by which layer answers them.",
     ],
   };
 
@@ -320,6 +342,23 @@
   };
 
   /* ── Security ───────────────────────────────────────────────────────── */
+  E["auth-models"] = {
+    plain: `<p>Signing in to an MCP server uses OAuth, the same system behind "Sign in with Google". It helps to rename the boxes first: the <b>MCP server</b> is the <b>resource server</b> (it checks passes), the <b>MCP client</b> is the <b>OAuth client</b> (it carries passes), and an <b>authorization server</b> is where you sign in and passes are made. The MCP server never sees your password.</p>
+      <p>Then pick the flow with three questions. Local program? No OAuth, it reads keys from its settings. A person using it? The normal browser sign-in. No person, like a nightly job? The program signs in as itself. A company with single sign-on? The company decides who may use what.</p>`,
+    terms: [
+      ["resource server", "OAuth's name for the MCP server: it accepts or refuses tokens."],
+      ["OAuth client", "OAuth's name for the MCP client: it gets and sends tokens."],
+      ["authorization server", "Where people sign in and tokens are issued (Okta, Entra ID, Auth0, Keycloak…)."],
+      ["client credentials", "A program signing in as itself, with no person present (extension, draft)."],
+      ["enterprise-managed", "The company's identity provider decides access (extension, stable)."],
+    ],
+    tryThis: [
+      "Answer the three questions in different combinations and press <b>Show the flow</b> each time.",
+      "Watch which boxes light up: the company IdP only appears for enterprise sign-in.",
+      "Sort the six cards by their OAuth role.",
+    ],
+  };
+
   E.oauth = {
     plain: `<p>A server on the internet needs to know who's calling. MCP uses the same sign-in standard as most websites (OAuth): the server says "sign in over there", your app opens a browser, you log in, and your app gets a <b>token</b>, a short-lived pass, valid only for that one server.</p>
       <p>Each step has a safety check. The lab lets you break each one and see the check catch it.</p>`,
@@ -335,6 +374,74 @@
       "Run <b>Everything right</b> and follow the eight steps.",
       "Run each fault: <b>AS doesn't advertise PKCE</b>, <b>Client omits resource</b>, <b>Response has another iss</b>, <b>Token in the URL</b>.",
       "For each, find the exact message in the wire where the check happened.",
+    ],
+  };
+
+  E.registration = {
+    plain: `<p>Before you can sign in, your app has to find the right sign-in service and introduce itself. Finding it means trying a few standard web addresses in a fixed order, then checking the document found there really belongs to the service it names, because an impostor could serve a copy.</p>
+      <p>Introducing itself is now usually done with a URL: the app's id <em>is</em> a web address, and at that address is a small file with the app's name and the exact addresses it may be sent back to after sign-in. The sign-in service reads that file and checks it.</p>`,
+    terms: [
+      ["issuer", "The sign-in service's own identifier; must match the document's <code>issuer</code> field."],
+      ["well-known URL", "A standard path like <code>/.well-known/oauth-authorization-server</code>."],
+      ["Client ID Metadata Document", "The file at the app's client-id URL: name and allowed redirect addresses."],
+      ["redirect URI", "Where the browser is sent back with the one-time code. Must match exactly."],
+      ["Dynamic Client Registration", "The older way: the app registers itself by API. Deprecated."],
+    ],
+    tryThis: [
+      "In the first lab, switch between issuers with and without a path and count the tries.",
+      "Turn on <b>Document names a different issuer</b>: the client refuses it.",
+      "In the second lab, load each preset and read which check fails and why.",
+      "Edit the document yourself, for example change one redirect URI by a single character.",
+    ],
+  };
+
+  E.tokens = {
+    plain: `<p>An access token is like a day pass that only lasts minutes, so a stolen one is worth little. A <b>refresh token</b> lets the app quietly get a new pass without asking you to sign in again. It is only ever shown to the sign-in service, never to the MCP server.</p>
+      <p>Good sign-in services <b>rotate</b> refresh tokens: every time one is used, it is swapped for a new one, so an old copy in a thief's hands stops working.</p>`,
+    terms: [
+      ["access token", "Short-lived pass sent with every request."],
+      ["refresh token", "Longer-lived pass used only to get new access tokens."],
+      ["offline_access", "The scope an app asks for if it wants a refresh token."],
+      ["rotation", "Each refresh returns a new refresh token; the old one dies."],
+      ["invalid_token", "401: the pass is missing, expired or not for this server."],
+    ],
+    tryThis: [
+      "Press <b>Call a tool</b>, then <b>Wait 20 minutes</b> and call again: watch the silent refresh.",
+      "Press <b>Attacker replays an old refresh token</b>, then try it again with rotation turned off.",
+      "Turn off <b>Ask for offline_access</b>, reset, and see what every expiry costs.",
+      "Press <b>Server moves to a new auth server</b> and call: the client registers again instead of reusing old credentials.",
+    ],
+  };
+
+  E["client-credentials"] = {
+    plain: `<p>Some callers aren't people: a test pipeline, a nightly check. Nobody is there to click "Allow", so the program signs in as itself. The safest way is a short note it signs with its own private key ("I am the nightly job, this is for that sign-in service, valid for two minutes"). The simpler way is a password-like secret, which works for anyone who steals it.</p>`,
+    terms: [
+      ["client credentials", "The OAuth flow where the program signs in as itself."],
+      ["JWT assertion", "A short-lived signed statement proving who the program is."],
+      ["client secret", "A long-lived shared password for the program."],
+      ["pre-registered", "Set up in advance by an administrator; required for this flow."],
+    ],
+    tryThis: [
+      "Run the job with <b>JWT assertion</b>, then with <b>Client secret</b>.",
+      "Pick <b>Credential leaks in a CI log</b> and run both methods again: compare what the attacker gets.",
+      "Pick <b>Assertion has the wrong aud</b> to see the server refuse an assertion meant for somewhere else.",
+    ],
+  };
+
+  E["enterprise-auth"] = {
+    plain: `<p>At a company, you already sign in once each morning with your work account. With enterprise-managed authorization, that is enough: the company's sign-in system decides whether you may use each MCP server, and the app swaps that decision for a pass to the server. No separate "Allow" screen per server.</p>
+      <p>When someone changes role or leaves, IT changes it in one place, and the next request is refused.</p>`,
+    terms: [
+      ["IdP", "Identity provider: the company's sign-in system (Okta, Entra ID…)."],
+      ["SSO", "Single sign-on: one sign-in for many apps."],
+      ["ID-JAG", "Identity Assertion JWT Authorization Grant: the IdP's signed \"yes, this person may use that server\"."],
+      ["token exchange", "Swapping one token for another (here: ID token → ID-JAG)."],
+      ["jwt-bearer grant", "Presenting the ID-JAG to the MCP server's sign-in service to get an access token."],
+    ],
+    tryThis: [
+      "Press <b>Open the console</b> and follow the four steps.",
+      "Turn off <b>Alice is in “release-engineers”</b> and open it again: the IdP refuses.",
+      "Turn on <b>IT removed Alice's access this morning</b>: same result, decided in one place.",
     ],
   };
 
@@ -432,8 +539,8 @@
   };
 
   E.exam = {
-    plain: `<p>Twenty-one questions covering the whole course. Each explanation names the lesson to go back to. The tables in the lab are a quick reference for error codes and for what 2026-07-28 removed.</p>`,
+    plain: `<p>Twenty-four questions covering the whole course. Each explanation names the lesson to go back to. The tables in the lab are a quick reference for error codes and for what 2026-07-28 removed.</p>`,
     terms: [],
-    tryThis: ["Answer all twenty-one and press <b>Check answers</b> at the bottom."],
+    tryThis: ["Answer all twenty-four and press <b>Check answers</b> at the bottom."],
   };
 })();

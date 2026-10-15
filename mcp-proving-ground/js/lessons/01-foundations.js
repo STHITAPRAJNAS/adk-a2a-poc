@@ -8,7 +8,8 @@
   PG.track("server", "Server features", "What a server offers: tools with schemas and results, annotations and approvals, state through handles, resources, prompts, caching and pages.");
   PG.track("asking", "Asking the client", "When a server needs something mid-request: Multi Round-Trip Requests, elicitation forms and links, and the deprecated sampling, roots and logging.");
   PG.track("transports", "Transports & long work", "Streamable HTTP and its headers, stdio, progress and cancellation, and the subscription stream for change notifications.");
-  PG.track("security", "Security", "OAuth for remote servers, scopes and step-up, why tokens never pass through, and the attacks that are specific to tool-using models.");
+  PG.track("auth", "Authorization", "Who signs in and how: OAuth roles, the sign-in flow, finding the authorization server and registering the client, tokens over time, scopes and passthrough, machine-to-machine, and company SSO.");
+  PG.track("security", "Security", "The attacks that exist because a model picks the tools, and their defences.");
   PG.track("production", "MCP in production", "Where MCP stops and A2A starts, gateways and replicas, and testing a server against the spec.");
   PG.track("mastery", "Mastery", "One full run with every piece switched on, then the exam.");
 
@@ -18,21 +19,29 @@
   PG.lesson({
     id: "actors",
     track: "foundations",
-    title: "One host, many clients, one server each",
+    title: "Who is the client, who is the server",
     short: "Host, client, server",
-    thesis: "The host is the app you use. Inside it, one MCP client per server holds one connection. A server sees only what its own client sends it: never the conversation, never the other servers.",
+    thesis: "Think of USB. The host is the computer, each MCP client is a port with its driver, and each MCP server is a device you plug in. The rule that never changes: the client sends requests, and the server, the side with the tools and data, answers them.",
     refs: "Spec 2026-07-28 · Architecture · Overview · Design principles",
     brief: `
-      <h2>Three roles</h2>
+      <h2>The one-line rule</h2>
+      <p><strong>The side that asks is the client. The side that has the tools is the server.</strong> In 2026-07-28 this never flips: a server no longer sends requests to the client. When it needs something, it answers "input required" and the client asks again (Asking the client track).</p>
+      <div class="table-wrap"><table class="tbl"><thead><tr><th>Role</th><th>What it is</th><th>Real examples</th></tr></thead><tbody>
+        <tr><td><strong>Host</strong></td><td>The app you use. It holds the model, the conversation and your consent, and decides what each server may see.</td><td>Claude Desktop, an IDE with an agent, your own ADK agent process</td></tr>
+        <tr><td><strong>MCP client</strong></td><td>A connector inside the host, one per server, usually an SDK object you never see. It sends the requests.</td><td>The MCP SDK's <code>Client</code>; ADK's <code>McpToolset</code></td></tr>
+        <tr><td><strong>MCP server</strong></td><td>The program that offers tools, resources and prompts, and answers requests.</td><td>A filesystem server started with <code>npx</code>; a company's remote server at <code>https://…/mcp</code>; <code>release-tools</code> in these labs</td></tr>
+      </tbody></table></div>
+      <h2>Where people get mixed up</h2>
       <ul>
-        <li><strong>Host</strong>: the application the user sees (an IDE, a chat app, an agent runtime). It owns the model, the conversation, the user's consent, and decides what each server is allowed to see.</li>
-        <li><strong>Client</strong>: a connector the host creates for <em>one</em> server. Host-to-client is in-process; client-to-server is MCP.</li>
-        <li><strong>Server</strong>: a program that offers tools, resources and prompts. It can be a local process (stdio) or a remote service (Streamable HTTP).</li>
+        <li><strong>"Server" doesn't mean a big machine.</strong> A local server is a small process on your laptop that the host starts. It is still the server.</li>
+        <li><strong>A backend can be the client side.</strong> An agent service running in a data centre is a host; its MCP connectors are clients.</li>
+        <li><strong>The model is not the client.</strong> It lives inside the host and chooses calls; the client sends them.</li>
+        <li><strong>One program can wear two hats.</strong> A gateway is a server to the apps that connect to it and a client to the servers behind it. This repo's deployment agent would be an A2A server to the concierge and an MCP client to its tools.</li>
+        <li><strong>OAuth uses other names</strong> for the same boxes: the MCP server is the <em>resource server</em>, the MCP client is the OAuth <em>client</em> (Authorization track).</li>
       </ul>
       <div class="note spec"><span class="note-label">Spec</span>Each client has a 1:1 relationship with one server. Servers should not be able to read the whole conversation or see into other servers. The host enforces those boundaries and the user's consent.</div>
       <h2>What crosses the wire</h2>
-      <p>MCP messages are JSON-RPC 2.0: requests with an <code>id</code>, results or errors with the same <code>id</code>, and notifications with no <code>id</code>. Ids are strings or integers and <strong>must not be <code>null</code></strong>.</p>
-      <p>The model never talks to a server. The host shows the model a list of tools; when the model asks for one, the host's client sends <code>tools/call</code> with just the arguments. That is all the server learns.</p>
+      <p>MCP messages are JSON-RPC 2.0: requests with an <code>id</code>, results or errors with the same <code>id</code>, and notifications with no <code>id</code>. Ids are strings or integers and <strong>must not be <code>null</code></strong>. When the model picks a tool, the client sends <code>tools/call</code> with just the arguments. That is all the server learns.</p>
       <div class="note"><span class="note-label">MCP and A2A</span>MCP connects an agent to its <em>tools and data</em>. A2A connects an agent to <em>another agent</em> that has its own goals and model. The ops concierge in this repo would use MCP to read a runbook and A2A to ask the release agent to do a release.</div>`,
     lab: function (bench, api) {
       const a = PG.lab(bench, "Follow one request through the host", "Lab · host · clients · servers");
@@ -106,6 +115,18 @@
         run.disabled = false;
       });
 
+      const r = PG.lab(bench, "Name the role", "Lab · host · MCP client · MCP server");
+      PG.sorter(r.body, [
+        { t: "Claude Desktop, with three servers configured", a: "Host", why: "The app you use, holding the model and the conversation." },
+        { t: "The connector Claude Desktop creates for the GitHub server", a: "MCP client", why: "One client per server, inside the host. It sends the requests." },
+        { t: "<code>npx @modelcontextprotocol/server-filesystem ~/docs</code>, running on your laptop", a: "MCP server", why: "Local and small, but it has the tools and answers requests, so it's the server." },
+        { t: "Your ADK agent's <code>McpToolset</code> pointed at release-tools", a: "MCP client", why: "ADK's MCP connector: it sends tools/list and tools/call." },
+        { t: "The ADK agent process itself, holding the model and the conversation", a: "Host", why: "An agent service is a host even when it runs on a server machine." },
+        { t: "release-tools at <code>https://release-tools.example.com/mcp</code>", a: "MCP server", why: "Remote, over Streamable HTTP; same role as the local one." },
+        { t: "The model that decides to call <code>rollback_release</code>", a: "None of these", why: "The model lives inside the host and chooses; the client sends. The model never talks to a server." },
+        { t: "An MCP gateway, as seen by the apps that connect to it", a: "MCP server", why: "To those apps it's a server. To the servers behind it, it's a client: two hats." },
+      ], ["Host", "MCP client", "MCP server", "None of these"]);
+
       const b = PG.lab(bench, "Which side owns it?", "Lab · host or server");
       PG.sorter(b.body, [
         { t: "The conversation history", a: "Host", why: "The host keeps it. A server gets only the arguments of calls made to it." },
@@ -123,6 +144,9 @@
       { q: "What does a server learn when the model calls one of its tools?",
         opts: ["The full conversation so far", "The tool name and the arguments the client sends", "The other servers' tool lists", "The user's identity, always"],
         a: 1, why: "Only what the client puts in the request. Identity reaches the server only through authorization (a token), not by default." },
+      { q: "A filesystem MCP server runs as a small process on your laptop. What is it?",
+        opts: ["The host", "An MCP client", "An MCP server", "Not part of MCP"],
+        a: 2, why: "Size and location don't matter: the side that has the tools and answers requests is the server." },
       { q: "Which JSON-RPC id is invalid in MCP?",
         opts: ["<code>1</code>", "<code>\"call-7\"</code>", "<code>null</code>", "<code>0</code>"],
         a: 2, why: "MCP requires a string or integer id and forbids null." },
@@ -488,6 +512,170 @@
       { q: "May a client change its behaviour because serverInfo.name is \"trusted-corp-server\"?",
         opts: ["Yes, that's what it is for", "No: it's self-reported and only for display and logging", "Only over HTTPS", "Only if the name matches the domain"],
         a: 1, why: "serverInfo is not verified by the protocol. Trust decisions come from configuration and authorization, not self-description." },
+    ],
+  });
+
+  /* ════════════════════════════════════════════════════════════════════
+   * Lesson: Finding servers — registry, AI Catalog, Server Cards
+   * ════════════════════════════════════════════════════════════════════ */
+  const CARD_TYPE = "application/mcp-server-card+json";
+  PG.lesson({
+    id: "finding",
+    track: "foundations",
+    title: "Finding servers: registry, server cards, discover",
+    short: "Finding servers",
+    thesis: "server/discover only works once you know an address. Before that, two things help: the MCP Registry, a public catalogue of servers and how to install them, and Server Cards, small documents a domain publishes saying where its MCP servers are and how to connect.",
+    refs: "MCP Registry (registry.modelcontextprotocol.io, preview) · server.json · SEP-2127 Server Cards (final; spec in experimental-ext-server-card, draft) · AI Catalog · Spec 2026-07-28 server/discover",
+    brief: `
+      <h2>Four questions, four answers</h2>
+      <div class="table-wrap"><table class="tbl"><thead><tr><th>Question</th><th>Answered by</th><th>When</th><th>Status</th></tr></thead><tbody>
+        <tr><td>Which servers exist? How do I install one?</td><td><strong>MCP Registry</strong> and the marketplaces built on it (<code>server.json</code>)</td><td>Before installing</td><td>Preview</td></tr>
+        <tr><td>Does this company offer MCP servers? Where do I connect?</td><td><strong>AI Catalog</strong> at <code>/.well-known/ai-catalog.json</code> pointing to <strong>Server Cards</strong></td><td>Before connecting</td><td>Extension</td></tr>
+        <tr><td>Which versions and capabilities does it have?</td><td><code>server/discover</code></td><td>Live, on the connection</td><td>Core spec</td></tr>
+        <tr><td>Which tools can <em>I</em> use right now?</td><td><code>tools/list</code> (and the other lists)</td><td>Live, as you</td><td>Core spec</td></tr>
+      </tbody></table></div>
+      <h2>The MCP Registry</h2>
+      <p>The official registry (<code>registry.modelcontextprotocol.io</code>) stores <em>metadata</em>, not code. Each entry is a <code>server.json</code>: a namespaced <code>name</code> like <code>io.github.alice/weather</code> or <code>com.example/release-tools</code>, a <code>version</code>, a <code>description</code>, and either <code>packages</code> (an npm, PyPI, NuGet, OCI, Cargo or MCPB package to run locally, usually over stdio) or <code>remotes</code> (a Streamable HTTP URL, possibly with <code>{variables}</code> such as a tenant or region).</p>
+      <ul>
+        <li><strong>Who may publish a name</strong>: <code>io.github.alice/*</code> only after signing in as GitHub user alice; <code>com.example/*</code> only after proving control of example.com (a DNS TXT record such as <code>v=MCPv1; k=ed25519; p=…</code>, or an HTTP challenge).</li>
+        <li><strong>Package ownership</strong>: the package must point back at the name: <code>mcpName</code> in npm's <code>package.json</code>, an <code>mcp-name:</code> line in a PyPI/NuGet/Cargo README, an <code>io.modelcontextprotocol.server.name</code> label on a container image.</li>
+        <li>Versions are immutable. A server can be marked <code>deprecated</code> or <code>deleted</code> (for spam or malware).</li>
+        <li>It's built to be read by <strong>aggregators</strong> (marketplaces, company catalogues) that copy it about hourly (<code>GET /v0.1/servers</code>, cursor paging, <code>updated_since</code>) and add ratings or scan results under their own <code>_meta</code> key. Host apps should read those subregistries, not the official registry directly. Private servers go in your own registry that implements the same OpenAPI spec.</li>
+      </ul>
+      <div class="note trap"><span class="note-label">What the registry does not promise</span>It verifies <em>who</em> published a name. It doesn't scan the code: that's left to npm, PyPI and the rest, and to the aggregators. Installing a server is still a trust decision (Threats lesson).</div>
+      <h2>Server Cards</h2>
+      <p>A <strong>Server Card</strong> (media type <code>${CARD_TYPE}</code>) describes one <em>remote</em> server: <code>name</code>, <code>version</code>, <code>description</code>, optional <code>title</code>, <code>icons</code>, <code>repository</code>, <code>websiteUrl</code>, and <code>remotes</code> (transport, URL, headers, variables, <code>supportedProtocolVersions</code>). The recommended place for it is <code>&lt;streamable-http-url&gt;/server-card</code>. A domain lists its cards in an <strong>AI Catalog</strong> at <code>/.well-known/ai-catalog.json</code>.</p>
+      <div class="note spec"><span class="note-label">By design</span>Cards list no tools and no capabilities, because those can differ per user and change at any time; you get them live. If a card and the live <code>server/discover</code> disagree, trust the live answer. Cards are public: no secrets or internal hostnames.</div>`,
+    lab: function (bench, api) {
+      const a = PG.lab(bench, "Point a client at a domain", "Lab · ai-catalog.json → Server Card → server/discover → tools/list");
+      let hasCatalog = true, stale = false, region = "eu-west1";
+      const wire = PG.wire(a.body);
+      const steps = PG.steps(a.body, ["GET /.well-known/ai-catalog.json", "Pick the MCP Server Card entry, fetch the card", "Fill in the URL variables, connect: server/discover", "tools/list, as you"]);
+      const out = h("div", { class: "result" });
+      const run = h("button", { class: "btn primary", type: "button", text: "Discover acme.example" });
+      a.body.insertBefore(h("div", { class: "stack" },
+        h("div", { class: "row" },
+          PG.switch("fd-cat", "acme.example publishes an AI Catalog", true, function (v) { hasCatalog = v; }),
+          PG.switch("fd-stale", "The card is out of date", false, function (v) { stale = v; })),
+        h("div", { class: "row" }, h("span", { class: "small", text: "Your region:" }), PG.seg([{ v: "eu-west1", label: "eu-west1" }, { v: "us-east1", label: "us-east1" }], region, function (v) { region = v; }, "Region"), run), out), wire.el);
+      run.addEventListener("click", function () {
+        wire.clear(); steps.reset();
+        steps.mark(0, "run");
+        wire.add({ actor: "client", label: "GET /.well-known/ai-catalog.json", http: { start: "GET /.well-known/ai-catalog.json HTTP/1.1", headers: { Host: "acme.example", Accept: "application/ai-catalog+json, application/json" } } });
+        if (!hasCatalog) {
+          wire.add({ kind: "in", actor: "server", label: "404", status: "404", http: { start: "HTTP/1.1 404 Not Found", headers: {} } });
+          steps.mark(0, "fail");
+          PG.setResult(out, "warn", "No catalog, so automatic discovery stops here. The user has to paste the server URL, or find the server in a registry or marketplace. Nothing else breaks: cards are optional.");
+          return;
+        }
+        const catalog = { specVersion: "1.0", entries: [
+          { identifier: "urn:air:acme.example:mcp:release-tools", type: CARD_TYPE, url: "https://mcp.acme.example/release-tools/server-card" },
+          { identifier: "urn:air:acme.example:mcp:docs-search", type: CARD_TYPE, url: "https://mcp.acme.example/docs-search/server-card" },
+        ] };
+        wire.add({ kind: "in", actor: "server", label: "AI Catalog · 2 MCP Server Cards", status: "200", http: SPEC.res(200, "json", { "Content-Type": "application/ai-catalog+json", "Access-Control-Allow-Origin": "*" }), body: catalog, hl: ["type"] });
+        steps.mark(0, "pass"); steps.mark(1, "run");
+        wire.add({ actor: "client", label: "GET …/release-tools/server-card", http: { start: "GET /release-tools/server-card HTTP/1.1", headers: { Host: "mcp.acme.example", Accept: CARD_TYPE } } });
+        const card = {
+          $schema: "(Server Card schema URL)",
+          name: "com.acme/release-tools", title: "Release tools", version: stale ? "1.2.0" : "1.4.0",
+          description: "Readiness checks, scaling and rollbacks for Acme's services.",
+          websiteUrl: "https://acme.example/docs/release-tools",
+          remotes: [{ type: "streamable-http", url: "https://mcp.acme.example/{region}/release-tools/mcp",
+            variables: { region: { description: "Your deployment region", isRequired: true, choices: ["eu-west1", "us-east1"] } },
+            supportedProtocolVersions: stale ? ["2025-11-25"] : [SPEC.V, "2025-11-25"] }],
+        };
+        wire.add({ kind: "in", actor: "server", label: "Server Card · com.acme/release-tools", status: "200", http: SPEC.res(200, "json", { "Content-Type": CARD_TYPE, "Cache-Control": "max-age=3600" }), body: card, hl: ["remotes", "supportedProtocolVersions"], open: true,
+          note: "No tools and no capabilities in here, on purpose. The card says where to connect and which versions to try." });
+        steps.mark(1, "pass"); steps.mark(2, "run");
+        const url = "https://mcp.acme.example/" + region + "/release-tools/mcp";
+        wire.add({ actor: "client", label: "POST " + url.replace("https://mcp.acme.example", "") + " · server/discover", http: SPEC.post("server/discover", null, null, { host: "mcp.acme.example", path: "/" + region + "/release-tools/mcp" }), body: SPEC.rpc("server/discover", {}, 1) });
+        wire.add({ kind: "in", actor: "server", label: "supportedVersions " + SPEC.V + ", 2025-11-25 · serverInfo 1.4.0", status: "200", http: SPEC.res(200), body: SPEC.ok(1, SPEC.discoverResult()), hl: ["supportedVersions"] });
+        steps.mark(2, "pass"); steps.mark(3, "run");
+        wire.add({ actor: "client", label: "tools/list (with your token)", http: SPEC.post("tools/list", null, null, { host: "mcp.acme.example", path: "/" + region + "/release-tools/mcp" }), body: SPEC.rpc("tools/list", {}, 2) });
+        wire.add({ kind: "in", actor: "server", label: SPEC.tools.length + " tools for you", status: "200", http: SPEC.res(200), body: SPEC.ok(2, { tools: SPEC.tools.map(function (t) { return { name: t.name, title: t.title }; }), ttlMs: 300000, cacheScope: "private" }) });
+        steps.mark(3, "pass");
+        PG.setResult(out, stale ? "warn" : "ok", stale
+          ? "The card said version 1.2.0 and only 2025-11-25, but the live server is 1.4.0 and speaks " + SPEC.V + ". The client goes with the live <code>server/discover</code> answer; the card was only a starting point."
+          : "Domain → catalog → card → address (" + region + ") → live versions → your tools. Nobody typed a URL.");
+      });
+
+      const b = PG.lab(bench, "Publish release-tools to the MCP Registry", "Lab · server.json · namespace · package ownership");
+      const published = ["1.3.0"];
+      let login = "github:alice";
+      const ta = h("textarea", { class: "inline", id: "reg-json", rows: 14, style: { width: "100%", fontFamily: "var(--font-mono)", fontSize: "11.5px" }, "aria-label": "server.json" });
+      const mcpName = h("input", { class: "inline", id: "reg-mcpname", style: { flex: "1 1 240px", fontFamily: "var(--font-mono)", fontSize: "12px" }, "aria-label": "mcpName in package.json" });
+      const list = h("ul", { class: "findings" });
+      const res = h("div", { class: "result" });
+      const base = {
+        $schema: "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        name: "io.github.alice/release-tools", title: "Release tools", description: "Readiness checks, scaling and rollbacks for your services", version: "1.4.0",
+        packages: [{ registryType: "npm", identifier: "@alice/release-tools-mcp", version: "1.4.0", transport: { type: "stdio" } }],
+        remotes: [{ type: "streamable-http", url: "https://release-tools.example.com/mcp" }],
+      };
+      const presets = {
+        good: [base, "io.github.alice/release-tools", "github:alice"],
+        ns: [Object.assign({}, base, { name: "com.acme/release-tools" }), "com.acme/release-tools", "github:alice"],
+        pkg: [base, "io.github.alice/release-tool", "github:alice"],
+        priv: [Object.assign({}, base, { remotes: [{ type: "streamable-http", url: "https://release-tools.acme-corp.internal/mcp" }] }), "io.github.alice/release-tools", "github:alice"],
+        dup: [Object.assign({}, base, { version: "1.3.0", packages: [Object.assign({}, base.packages[0], { version: "1.3.0" })] }), "io.github.alice/release-tools", "github:alice"],
+        dns: [Object.assign({}, base, { name: "com.example/release-tools" }), "com.example/release-tools", "dns:example.com"],
+      };
+      let loginSeg;
+      function load(k) { const p = presets[k]; ta.value = JSON.stringify(p[0], null, 1); mcpName.value = p[1]; login = p[2]; loginSeg.set(login); check(); }
+      function check() {
+        list.innerHTML = "";
+        let s, ok = true;
+        function row(pass, text) { if (!pass) ok = false; list.appendChild(h("li", {}, h("span", { class: "chip " + (pass ? "ok" : "err"), text: pass ? "pass" : "fail" }), h("span", { html: text }))); }
+        try { s = JSON.parse(ta.value); } catch (e) { PG.setResult(res, "err", "server.json isn't valid JSON."); return; }
+        const name = String(s.name || "");
+        const ns = name.split("/")[0];
+        let nsOk;
+        if (login.indexOf("github:") === 0) nsOk = ns === "io.github." + login.slice(7);
+        else { const dom = login.slice(4).split(".").reverse().join("."); nsOk = ns === dom || ns.indexOf(dom + ".") === 0; }
+        row(/^[a-zA-Z0-9.-]+\/[a-zA-Z0-9._-]+$/.test(name), "<code>name</code> is <code>namespace/server</code> in reverse-DNS form");
+        row(nsOk, "namespace <code>" + PG.esc(ns) + "</code> matches how you signed in (" + PG.esc(login.replace("github:", "GitHub user ").replace("dns:", "DNS-verified domain ")) + ")");
+        (s.packages || []).forEach(function (p) {
+          if (p.registryType === "npm") row(mcpName.value === name, "npm package <code>" + PG.esc(p.identifier) + "</code> has <code>mcpName</code> = the server name (it says <code>" + PG.esc(mcpName.value) + "</code>)");
+        });
+        (s.remotes || []).forEach(function (r) {
+          let u = null; try { u = new URL(r.url.replace(/\{[^}]+\}/g, "x")); } catch (e) { /* invalid */ }
+          row(!!u && u.protocol === "https:" && !/\.(internal|local|corp|lan)$/.test(u.hostname), "remote <code>" + PG.esc(r.url) + "</code> is public https (private servers belong in your own registry)");
+        });
+        row(published.indexOf(String(s.version)) < 0, "version <code>" + PG.esc(String(s.version)) + "</code> hasn't been published before (versions are immutable; published: " + published.join(", ") + ")");
+        PG.setResult(res, ok ? "ok" : "err", ok ? "Accepted. Aggregators pick it up on their next sync; marketplaces then add their own ratings and scans." : "Rejected. Fix the failing checks; each one is how the registry stops someone publishing under a name or package that isn't theirs.");
+      }
+      [ta, mcpName].forEach(function (el) { el.addEventListener("input", check); });
+      loginSeg = PG.seg([{ v: "github:alice", label: "Signed in: GitHub alice" }, { v: "dns:example.com", label: "Signed in: DNS example.com" }], login, function (v) { login = v; check(); }, "Publisher login");
+      b.body.append(h("div", { class: "row" },
+        h("button", { class: "btn small", type: "button", text: "Good entry", onclick: function () { load("good"); } }),
+        h("button", { class: "btn small", type: "button", text: "Someone else's namespace", onclick: function () { load("ns"); } }),
+        h("button", { class: "btn small", type: "button", text: "Package doesn't point back", onclick: function () { load("pkg"); } }),
+        h("button", { class: "btn small", type: "button", text: "Private URL", onclick: function () { load("priv"); } }),
+        h("button", { class: "btn small", type: "button", text: "Republish 1.3.0", onclick: function () { load("dup"); } }),
+        h("button", { class: "btn small", type: "button", text: "Domain namespace", onclick: function () { load("dns"); } })),
+        loginSeg, ta, h("label", { class: "field", for: "reg-mcpname" }, h("span", { text: "mcpName in the npm package's package.json" }), mcpName), res, list);
+      load("good");
+
+      const c = PG.lab(bench, "Which layer answers it?", "Lab · registry · card · discover · list");
+      PG.sorter(c.body, [
+        { t: "Is there an MCP server for our ticketing system, and what's the npm package?", a: "Registry", why: "Finding and installing servers is what the registry (and the marketplaces on top of it) is for." },
+        { t: "Acme's domain: does it offer MCP servers, and at what URL?", a: "Server Card", why: "An AI Catalog at <code>/.well-known/ai-catalog.json</code> lists Acme's Server Cards with their endpoints." },
+        { t: "Does this endpoint speak 2026-07-28, and does it support the tasks extension?", a: "server/discover", why: "Versions and capabilities, live. Cards deliberately don't carry capabilities." },
+        { t: "May I, logged in as Bob, call rollback_release?", a: "tools/list", why: "What a user can use can differ per person; only the live list, made with your token, says." },
+        { t: "Who really published <code>io.github.alice/weather</code>?", a: "Registry", why: "Only GitHub user alice can publish under <code>io.github.alice/</code>." },
+        { t: "The card says version 1.2.0, the server says 1.4.0. Which is right?", a: "server/discover", why: "When they disagree, clients prefer the live answer." },
+      ], ["Registry", "Server Card", "server/discover", "tools/list"]);
+    },
+    quiz: [
+      { q: "What does the MCP Registry store?",
+        opts: ["Server code and binaries", "Metadata (server.json) pointing to packages or remote URLs", "Each server's tool list", "Access tokens"],
+        a: 1, why: "Packages live on npm, PyPI, Docker Hub and so on; the registry holds metadata." },
+      { q: "Who may publish io.github.alice/weather?",
+        opts: ["Anyone", "Only someone signed in to GitHub as alice", "Only Anthropic", "Whoever publishes first"],
+        a: 1, why: "Namespaces are tied to verified GitHub accounts or domains." },
+      { q: "Why don't Server Cards list tools?",
+        opts: ["To save space", "Tools can differ per user and change at runtime, so they're always fetched live", "Tools are secret", "Cards are only for stdio servers"],
+        a: 1, why: "Static cards can't represent per-user, changing tool lists; clients use tools/list." },
     ],
   });
 })();

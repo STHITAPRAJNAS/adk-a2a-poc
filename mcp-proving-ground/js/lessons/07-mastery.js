@@ -206,7 +206,7 @@
     track: "mastery",
     title: "Final exam",
     short: "Exam",
-    thesis: "Twenty-one questions across the whole course. Pass them all to complete the proving ground.",
+    thesis: "Twenty-four questions across the whole course. Pass them all to complete the proving ground.",
     refs: "MCP specification 2026-07-28",
     brief: `
       <h2>Before you start</h2>
@@ -222,6 +222,15 @@
       a.body.append(h("div", { class: "table-wrap" }, t2));
     },
     quiz: [
+      { q: "A filesystem server runs on your laptop, started by your IDE. Which is the MCP server?",
+        opts: ["The IDE", "The filesystem process", "The model", "The laptop"],
+        a: 1, why: "The side with the tools that answers requests is the server, however small (Host, client, server)." },
+      { q: "Where should a host app look for MCP servers to offer its users?",
+        opts: ["Scrape GitHub", "A registry or marketplace that implements the MCP Registry API", "server/discover on random domains", "tools/list"],
+        a: 1, why: "The official registry feeds aggregators and subregistries; hosts read those (Finding servers)." },
+      { q: "A CI job with no person present must call a remote MCP server. Which flow?",
+        opts: ["Authorization code + PKCE", "Client credentials, ideally with a signed JWT assertion", "URL elicitation", "Forward a developer's token"],
+        a: 1, why: "Machine to machine." },
       { q: "What replaced the initialize handshake?",
         opts: ["A login request", "protocolVersion and clientCapabilities in every request's _meta", "The Mcp-Session-Id header", "server/discover, which is now mandatory before any request"],
         a: 1, why: "Stateless requests (Stateless _meta). server/discover is mandatory for servers to implement, optional for clients to call." },
