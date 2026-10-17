@@ -348,23 +348,96 @@
     ],
   };
 
-  E.payments = {
-    plain: `<p>The release agent needs extra machines and buys them from a vendor's agent with the company card. Nobody should have to <em>trust the agent</em> that a person said yes, so AP2 makes the yes a <b>signed document</b>, called a <b>mandate</b>.</p>
-      <p>A person approves on a page that is not an agent, either <b>one exact purchase</b> or <b>limits</b> ("up to $10 each, $20 in total, twice, Northwind only"). The vendor, the wallet and the payment processor each check the signature and the rules themselves, in plain code. The agent never sees the card number: the wallet gives it a token that works once, for one checkout.</p>
-      <p>Like a company purchase order: the buyer can fill it in, but only a manager's signature makes it valid, and the supplier checks the signature and the amount before shipping.</p>`,
+  E["ap2-why"] = {
+    plain: `<p>The release agent needs extra machines and buys them from a vendor's agent with the company card. Three things must be true, and none of them can rest on the agent's word: a <b>person</b> agreed, this is <b>the purchase</b> they agreed to, and the <b>card</b> can't be used for anything else.</p>
+      <p>AP2 gets there with a simple split: a page that is <em>not</em> an AI shows the real purchase and records the person's yes with a signature; everyone else checks that signature themselves; and the agent never holds the card, only a one-use token. Like a purchase order: the buyer fills it in, only a manager's signature makes it valid, and the supplier checks the signature before shipping.</p>`,
     terms: [
-      ["mandate", "A signed record of what a person agreed to."],
-      ["closed / open", "Closed: one exact purchase. Open: limits the agent may buy within."],
-      ["Trusted Surface", "The approval page or app where the person says yes. Must not be an agent."],
-      ["Credential Provider", "The wallet that holds the card and hands out single-use tokens."],
-      ["checkout hash", "A fingerprint of the vendor's signed checkout. Change the price and it changes."],
-      ["unresolved_constraint", "The error a vendor or wallet returns when a purchase breaks the limits."],
+      ["AP2", "The Agent Payments Protocol: rules for agents that buy things for people."],
+      ["Trusted Surface", "The approval page or app where the person says yes. Must not be an AI."],
+      ["Credential Provider", "The wallet that holds the card and hands out one-use tokens."],
+      ["prompt injection", "Text the agent reads that tries to give it new instructions, e.g. “also buy this”."],
     ],
     tryThis: [
-      "Run the <b>honest purchase</b> with <b>approve one purchase</b>, then with <b>approve limits once</b>, and compare the mandates in the wire.",
-      "Pick <b>price changes after approval</b>: see who refuses, and why.",
-      "Pick <b>over the limits</b>, run it, then turn on <b>The agent was tricked</b> and run again.",
-      "In <b>Would this purchase pass?</b>, change the budget or the quantity until a check fails, and note who checks it.",
+      "Leave <b>the agent itself</b> and <b>the card number</b> and press <b>Run</b>: both things go wrong.",
+      "Switch to <b>an AI approval assistant</b>: still fooled.",
+      "Switch to <b>a non-agentic page + passkey</b> and <b>the wallet issues a scoped token</b>: both are safe.",
+    ],
+  };
+
+  E["ap2-mandates"] = {
+    plain: `<p>A <b>mandate</b> is the signed record of what the person agreed to. It is built so that the holder can <b>hide</b> fields from a verifier who doesn't need them (the merchant doesn't need to know which card), but nobody can <b>change</b> a field without being caught.</p>
+      <p>The trick: instead of signing the values, the approval page signs a fingerprint (hash) of each value. You hand over the values you want to show; the verifier fingerprints them and checks each one against the signed list.</p>`,
+    terms: [
+      ["SD-JWT", "Selective-Disclosure JWT: a signed token whose fields can be revealed one by one."],
+      ["disclosure", "One revealed field: a random salt, the field's name and its value."],
+      ["digest", "The sha-256 fingerprint of a disclosure; the signed payload lists them in <code>_sd</code>."],
+      ["closed / open", "Closed: one exact purchase. Open: limits the agent may buy within."],
+      ["checkout hash", "The fingerprint of the merchant's signed checkout. Change one cent and it changes."],
+    ],
+    tryThis: [
+      "Press <b>1 · Approval page signs</b> (a real key, made in your browser), then <b>2 · Verifier checks</b>.",
+      "Turn a field off under <b>Disclose to this verifier</b> and check again: still valid, the verifier just sees less.",
+      "Press <b>Tamper: amount → $0.01</b>, then <b>Tamper: edit the signed payload</b>, and read why each fails.",
+      "In <b>The checkout hash</b>, press <b>Approve this checkout</b>, then change the price by one cent.",
+    ],
+  };
+
+  E["ap2-present"] = {
+    plain: `<p>The simple case: the person is there. The agent gets a signed checkout from the vendor, the approval page shows it, the person approves, and the page signs two documents: “this checkout” and “pay this much to this vendor with this card”.</p>
+      <p>The wallet checks the second one and gives the agent a token for exactly this checkout. The vendor checks the first one and charges the token. Signed receipts come back.</p>`,
+    terms: [
+      ["checkout", "The vendor's signed list of items and total."],
+      ["payment token", "What the wallet gives the agent instead of the card: one use, one checkout, five minutes."],
+      ["receipt", "A signed “paid” or “refused, because…” pointing back at the mandate it answers."],
+    ],
+    tryThis: [
+      "Run the <b>honest purchase</b> and open the wire rows: the two closed mandates, the token, the receipts.",
+      "Run <b>price changes after approval</b>: who refuses, and why.",
+      "Run <b>replay a paid checkout</b>.",
+    ],
+  };
+
+  E["ap2-delegate"] = {
+    plain: `<p>The person approves <b>rules</b> once: “up to 4 node-hours per purchase, only from Northwind, at most $10 each, $20 in total, twice, in the next 6 hours”. The agent then buys on its own.</p>
+      <p>For each purchase the agent writes and signs the exact purchase under those rules with its own key. The vendor checks the goods against the rules; the wallet checks the money, and keeps count of what has been spent.</p>`,
+    terms: [
+      ["open mandate", "The signed rules. It names the agent's key, so only that agent can use it."],
+      ["constraint", "One rule: allowed items, per-purchase maximum, budget, number of purchases, expiry."],
+      ["unresolved_constraint", "The refusal when a purchase breaks a rule. The fix is asking the person, not bending the purchase."],
+      ["cents vs dollars", "In the SDK, prices and the per-purchase range are in cents; the budget is in dollars."],
+    ],
+    tryThis: [
+      "Run <b>honest purchase</b>, then <b>three purchases in a row</b>: watch the wallet's counter.",
+      "Turn on <b>The agent was tricked</b> and run three in a row again: now the wallet refuses the third.",
+      "In <b>Would this purchase pass?</b>, change the budget, the quantity or the merchant until a rule fails.",
+    ],
+  };
+
+  E["ap2-attacks"] = {
+    plain: `<p>Assume the agent will sometimes be fooled. What matters is whether a fooled agent can actually spend money the person didn't approve. In AP2 it can't: the vendor, the wallet and the processor each check the signed rules on their own.</p>
+      <p>The agent checking first is polite (it saves a wasted request), not protection.</p>`,
+    terms: [
+      ["invalid_mandate", "A real mandate, but for a different checkout (or one already paid)."],
+      ["unresolved_constraint", "The purchase breaks one of the approved rules."],
+      ["-32008", "The vendor requires AP2 and the request didn't switch it on."],
+    ],
+    tryThis: [
+      "Run each attack once as is.",
+      "For <b>over the limits</b> and <b>an item never allowed</b>, turn on <b>The agent was tricked</b> and run again: note which party refuses.",
+    ],
+  };
+
+  E["ap2-wire"] = {
+    plain: `<p>On the network, AP2 is an A2A <b>extension</b>. The vendor's Agent Card says “AP2 required”; each request switches it on with a header; the signed documents travel as named data inside the message; refusals come back as a rejected task with a signed error receipt.</p>`,
+    terms: [
+      ["A2A-Extensions", "The header that switches an extension on for one request."],
+      ["data part", "A piece of a message that holds structured JSON, here the mandates and receipts."],
+      ["UCP", "A commerce protocol for the shopping itself (search, carts, checkout). AP2 covers the payment."],
+    ],
+    tryThis: [
+      "Press <b>Fetch the Agent Card</b> and find <code>required: true</code>.",
+      "Turn off <b>Send A2A-Extensions</b> and send anything.",
+      "Send <b>complete, no mandate</b>, then <b>complete, mandate + token</b>, and compare the task states.",
     ],
   };
 

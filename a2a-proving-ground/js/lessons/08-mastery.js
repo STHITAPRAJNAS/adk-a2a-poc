@@ -287,7 +287,7 @@
     track: "mastery",
     title: "Final checkpoint",
     short: "Final checkpoint",
-    thesis: "Twenty-three questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
+    thesis: "Twenty-four questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
     refs: "All lessons",
     brief: `
       <p>Take it cold. If you miss one, read the explanation, revisit the lesson, and come back.</p>
@@ -327,6 +327,9 @@
       { q: "An agent may buy within limits a person approved yesterday. A tricked agent tries a purchase over the budget. What stops it?",
         opts: ["Nothing, the open mandate is already signed", "The wallet evaluates the open Payment Mandate's budget against its own record of spend and refuses", "The A2A task store", "The agent's system prompt"],
         a: 1, why: "AP2 constraints are checked by the verifiers in deterministic code, not left to the agent." },
+      { q: "A mandate's amount disclosure is edited after signing; the JWT signature is untouched. What does a verifier find?",
+        opts: ["Nothing wrong", "The edited disclosure's sha-256 is not among the signed _sd digests, so it is rejected", "An expired token", "A different vct"],
+        a: 1, why: "SD-JWT signs digests of each disclosure: fields can be hidden, never changed." },
       { q: "Which is the most reliable way to test an agent's A2A behaviour in CI?",
         opts: ["Mock the HTTP client", "Real servers on real ports with a scripted model, asserting on states and errors", "Snapshot the LLM's text", "Run it in production"],
         a: 1, why: "The hop is where things break; a deterministic model keeps the protocol path stable." },

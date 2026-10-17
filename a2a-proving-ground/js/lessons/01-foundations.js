@@ -9,7 +9,8 @@
   PG.track("conversation", "Conversation", "Skills, messages, tasks and the three ways results come back.");
   PG.track("security", "Security", "Authentication, authorization, and asking for credentials mid-task.");
   PG.track("infrastructure", "Infrastructure", "Bindings, versions, gateways and extensions: what sits between two agents.");
-  PG.track("production", "Agents in production", "What breaks once agents call agents for real: restarts, cancels, fan-out, identity, tracing, untrusted replies, agents that pay, replicas and loops, and how to test for all of it.");
+  PG.track("production", "Agents in production", "What breaks once agents call agents for real: restarts, cancels, fan-out, identity, tracing, untrusted replies, replicas and loops, and how to test for all of it.");
+  PG.track("ap2", "Agent payments (AP2)", "An agent that spends money: who may approve, signed mandates up close, approving one purchase or limits once, what a tricked agent can and cannot do, and how it all rides on A2A.");
   PG.track("frontends", "Front ends", "How web UIs and apps talk to agents: architectures, streaming into a page, gates as UI, AG-UI, safe rendering, and a live client for your own agents.");
   PG.track("mastery", "Mastery", "Put it together, then prove it.");
 

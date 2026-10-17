@@ -26,7 +26,7 @@
       </tbody></table></div>
       <div class="note"><span class="note-label">Rule of thumb</span>If you'd describe it with a function signature, it's an MCP tool. If you'd describe it with a job description, it's an A2A agent.</div>
       <div class="note ours"><span class="note-label">In this repo</span>The ops concierge hands releases to the deployment agent over A2A: the release agent plans, scans, asks for approval and executes on its own. Each of those steps is a tool call inside the release agent, which is exactly what an MCP server like <code>release-tools</code> would provide.</div>
-      <div class="note"><span class="note-label">Payments ride on either</span>The Agent Payments Protocol (AP2) is defined independently of the transport: its official samples run the merchant, wallet and payment processor both as A2A agents and as MCP servers. The signed mandates are the same either way; only the envelope changes. The A2A guide's lesson <em>An agent that pays (AP2)</em> and this repo's <code>payments/</code> walk the A2A version.</div>`,
+      <div class="note"><span class="note-label">Payments ride on either</span>The Agent Payments Protocol (AP2) is defined independently of the transport: its official samples run the merchant, wallet and payment processor both as A2A agents and as MCP servers. The signed mandates are the same either way; only the envelope changes. The A2A guide's <em>Agent payments (AP2)</em> track and this repo's <code>payments/</code> walk the A2A version.</div>`,
     lab: function (bench, api) {
       const a = PG.lab(bench, "One release, both protocols", "Lab · A2A between agents · MCP inside each");
       const stage = PG.stage(a.body, {

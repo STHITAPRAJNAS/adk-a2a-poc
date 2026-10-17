@@ -437,7 +437,7 @@
         <dt>Checkout Mandate</dt><dd>Binds to the merchant-signed checkout by its hash. <em>Closed</em>: this exact checkout. <em>Open</em>: limits on items and merchants, so an agent can buy later without asking again.</dd>
         <dt>Payment Mandate</dt><dd>What the wallet and the payment network check before releasing a credential: payee, amount and instrument (closed), or an amount range, budget, number of uses and expiry (open).</dd>
       </dl>
-      <p>Mandates travel as SD-JWTs in <code>data</code> parts; for an open mandate the agent appends a closed one signed with its own key. Notice the family resemblance to the <a href="#delegation">delegation lesson</a>: a verifiable record of <em>who authorised what, for whom</em>, carried across hops. The <a href="#payments">agent payments lesson</a> walks the whole flow, and its attacks.</p>`,
+      <p>Mandates travel as SD-JWTs in <code>data</code> parts; for an open mandate the agent appends a closed one signed with its own key. Notice the family resemblance to the <a href="#delegation">delegation lesson</a>: a verifiable record of <em>who authorised what, for whom</em>, carried across hops. The <a href="#ap2-why">Agent payments (AP2) track</a> walks the whole thing: mandates up close, both ways of approving, the attacks and the wire.</p>`,
     lab: function (bench) {
       const a = PG.lab(bench, "Negotiate extensions", "Lab · declare · activate · -32008");
       const req = { 0: false, 1: false, 2: true };
