@@ -432,13 +432,12 @@
       </ul>
       <div class="note ours"><span class="note-label">In this repo</span>ADK pauses on long-running tools by sending a DataPart tagged <code>adk_type: function_call</code> and <code>adk_is_long_running: true</code>, and resumes on a function-response DataPart. That is effectively an extension. Declaring it in the card, with its own URI, would let non-ADK clients know about it.</div>
       <h2>A real one: agent payments (AP2)</h2>
-      <p>Google's Agent Payments Protocol is built as an A2A extension, and shows what extensions are for: adding a whole domain without touching the core protocol. Its central idea is the <em>mandate</em>, a signed, verifiable statement of what a user authorised:</p>
+      <p>The Agent Payments Protocol is built as an A2A extension, and shows what extensions are for: adding a whole domain without touching the core protocol. A merchant's card lists <code>https://github.com/google-agentic-commerce/ap2/v1</code> with <code>required: true</code>. Its central idea is the <em>mandate</em>, a signed, verifiable statement of what a person authorised. AP2 v0.2 has two:</p>
       <dl class="terms">
-        <dt>Intent mandate</dt><dd>What the user asked an agent to do, within limits (“buy these shoes, under $120, by Friday”). Lets an agent act when the user isn't watching.</dd>
-        <dt>Cart mandate</dt><dd>The exact items and price the user (or their agent, within the intent) approved.</dd>
-        <dt>Payment mandate</dt><dd>What goes to the payment network, so it can see an agent was involved and who authorised it.</dd>
+        <dt>Checkout Mandate</dt><dd>Binds to the merchant-signed checkout by its hash. <em>Closed</em>: this exact checkout. <em>Open</em>: limits on items and merchants, so an agent can buy later without asking again.</dd>
+        <dt>Payment Mandate</dt><dd>What the wallet and the payment network check before releasing a credential: payee, amount and instrument (closed), or an amount range, budget, number of uses and expiry (open).</dd>
       </dl>
-      <p>Mandates travel as structured <code>data</code> parts; agents that speak the extension declare it in their card and activate it per request with <code>A2A-Extensions</code>. Notice the family resemblance to the <a href="#delegation">delegation lesson</a>: a verifiable record of <em>who authorised what, for whom</em>, carried across hops. Check the AP2 repository for the current extension URI and schemas before you build on it; the protocol is young.</p>`,
+      <p>Mandates travel as SD-JWTs in <code>data</code> parts; for an open mandate the agent appends a closed one signed with its own key. Notice the family resemblance to the <a href="#delegation">delegation lesson</a>: a verifiable record of <em>who authorised what, for whom</em>, carried across hops. The <a href="#payments">agent payments lesson</a> walks the whole flow, and its attacks.</p>`,
     lab: function (bench) {
       const a = PG.lab(bench, "Negotiate extensions", "Lab · declare · activate · -32008");
       const req = { 0: false, 1: false, 2: true };

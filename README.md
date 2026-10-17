@@ -330,10 +330,10 @@ a real CopilotKit app, a load balancer, three replicas, side-effecting tools,
 a load test and chaos.
 
 **[`a2a-proving-ground/`](a2a-proving-ground/)** is an interactive website for
-learning the A2A 1.0 protocol itself: thirty-one animated lessons covering cards,
+learning the A2A 1.0 protocol itself: thirty-two animated lessons covering cards,
 discovery, signatures, skills, tasks, streaming, authentication, authorization,
 bindings, gateways and extensions, plus a track on running agents in production
-(restarts, cancels, fan-out, delegated identity, tracing, untrusted replies)
+(restarts, cancels, fan-out, delegated identity, tracing, untrusted replies, an agent that pays with AP2)
 and one on front ends (how web UIs talk to agents, AG-UI, rendering output
 safely, and a live lesson that drives these agents from the browser), each with
 a live wire inspector. Run it on

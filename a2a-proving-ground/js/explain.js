@@ -348,6 +348,26 @@
     ],
   };
 
+  E.payments = {
+    plain: `<p>The release agent needs extra machines and buys them from a vendor's agent with the company card. Nobody should have to <em>trust the agent</em> that a person said yes, so AP2 makes the yes a <b>signed document</b>, called a <b>mandate</b>.</p>
+      <p>A person approves on a page that is not an agent, either <b>one exact purchase</b> or <b>limits</b> ("up to $10 each, $20 in total, twice, Northwind only"). The vendor, the wallet and the payment processor each check the signature and the rules themselves, in plain code. The agent never sees the card number: the wallet gives it a token that works once, for one checkout.</p>
+      <p>Like a company purchase order: the buyer can fill it in, but only a manager's signature makes it valid, and the supplier checks the signature and the amount before shipping.</p>`,
+    terms: [
+      ["mandate", "A signed record of what a person agreed to."],
+      ["closed / open", "Closed: one exact purchase. Open: limits the agent may buy within."],
+      ["Trusted Surface", "The approval page or app where the person says yes. Must not be an agent."],
+      ["Credential Provider", "The wallet that holds the card and hands out single-use tokens."],
+      ["checkout hash", "A fingerprint of the vendor's signed checkout. Change the price and it changes."],
+      ["unresolved_constraint", "The error a vendor or wallet returns when a purchase breaks the limits."],
+    ],
+    tryThis: [
+      "Run the <b>honest purchase</b> with <b>approve one purchase</b>, then with <b>approve limits once</b>, and compare the mandates in the wire.",
+      "Pick <b>price changes after approval</b>: see who refuses, and why.",
+      "Pick <b>over the limits</b>, run it, then turn on <b>The agent was tricked</b> and run again.",
+      "In <b>Would this purchase pass?</b>, change the budget or the quantity until a check fails, and note who checks it.",
+    ],
+  };
+
   E.replicas = {
     plain: `<p>Two copies of an agent share one database of tasks, so either copy can <em>look up</em> any task. But the <em>work</em> on a task, and the live updates it sends, happen inside the one copy that started it.</p>
       <p>Ask the other copy for updates and you hear nothing more. Ask it to cancel and it says "done" while the real work carries on, and later overwrites "canceled". Like two cooks sharing an order book: either can read any order, only the one cooking can tell you it is ready, or stop.</p>
