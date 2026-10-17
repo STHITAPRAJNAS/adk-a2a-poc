@@ -308,6 +308,18 @@ opt-in switch on these same servers (`servers/hardening.py`), off by default,
 covered by `tests/test_production.py` and `tests/test_replicas_and_loops.py`,
 and driven step by step with the probes in `scripts/`.
 
+**[`payments/`](payments/)** adds **agent payments with AP2** (the Agent
+Payments Protocol, v0.2, on the official `ap2` SDK): the release agent buys
+burst capacity from a vendor's A2A sales agent that requires the AP2 extension.
+A person approves either one exact checkout or a set of limits on a
+non-agentic approval page, which signs SD-JWT mandates; the vendor, a corporate
+wallet and a payment processor each check them in plain code, and the agent
+only ever holds a single-use token, never the card. `make install-payments`,
+`make run-payments`, then `make ap2`; `tests/test_payments.py` covers both
+journeys and the attacks (repricing, over-limit, wrong items, replay, a missing
+extension header), and lab 86 in `k8s-lab/` and `mac-lab/` runs it on the
+cluster.
+
 **[`agui/`](agui/)** puts the concierge behind a browser front end that speaks
 **AG-UI**, runs it with two replicas on the lab cluster, and reproduces
 [ag-ui-protocol/ag-ui#2603](https://github.com/ag-ui-protocol/ag-ui/issues/2603)

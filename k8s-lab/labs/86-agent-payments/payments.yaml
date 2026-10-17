@@ -1,0 +1,259 @@
+# Lab 86 — agent payments with AP2: four small services the release agent buys from.
+#
+#   northwind-sales     :8410  Northwind's sales agent. An A2A server whose card
+#                              REQUIRES the AP2 extension. Sells burst capacity.
+#   acme-wallet         :8411  Acme's wallet: holds the corporate card, checks the
+#                              Payment Mandate, hands out a single-use token.
+#   northwind-payments  :8412  Northwind's processor: charges the token.
+#   acme-approvals      :8413  The approval page a PERSON uses. The only place a
+#                              mandate gets signed. Not an agent.
+#
+# None of them use a model: AP2 requires every check to be plain code. Each
+# publishes its public key at /.well-known/jwks.json and finds the others'
+# keys through the AP2_*_URL variables below.
+#
+# The release agent gets the buying tools when AP2_MERCHANT_URL is set on it
+# (README step 0).
+apiVersion: v1
+kind: Service
+metadata:
+  name: northwind-sales
+  namespace: agents
+  labels: {app: northwind-sales, lab: "86"}
+spec:
+  selector: {app: northwind-sales}
+  ports:
+    - {name: http, port: 8410, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: northwind-sales
+  namespace: agents
+  labels: {app: northwind-sales, lab: "86"}
+spec:
+  # One replica: each service keeps its state (checkouts, tokens, budget used)
+  # in memory, which is fine for a lab and wrong for production.
+  replicas: 1
+  selector:
+    matchLabels: {app: northwind-sales}
+  template:
+    metadata:
+      labels: {app: northwind-sales, lab: "86"}
+    spec:
+      containers:
+        - name: merchant
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          # Northwind: the vendor's sales agent (A2A, AP2 required)
+          args: ["payments.server", "merchant"]
+          ports:
+            - {name: http, containerPort: 8410}
+          env:
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "8410"}
+            - {name: AP2_MERCHANT_URL, value: "http://northwind-sales.agents.svc.cluster.local:8410"}
+            - {name: AP2_CREDENTIAL_PROVIDER_URL, value: "http://acme-wallet.agents.svc.cluster.local:8411"}
+            - {name: AP2_PROCESSOR_URL, value: "http://northwind-payments.agents.svc.cluster.local:8412"}
+            - {name: AP2_TRUSTED_SURFACE_URL, value: "http://acme-approvals.agents.svc.cluster.local:8413"}
+            - {name: AP2_MERCHANT_PUBLIC_URL, value: "http://northwind-sales.agents.svc.cluster.local:8410"}
+          readinessProbe:
+            httpGet: {path: /a2a/northwind_sales/.well-known/agent-card.json, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acme-wallet
+  namespace: agents
+  labels: {app: acme-wallet, lab: "86"}
+spec:
+  selector: {app: acme-wallet}
+  ports:
+    - {name: http, port: 8411, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acme-wallet
+  namespace: agents
+  labels: {app: acme-wallet, lab: "86"}
+spec:
+  # One replica: each service keeps its state (checkouts, tokens, budget used)
+  # in memory, which is fine for a lab and wrong for production.
+  replicas: 1
+  selector:
+    matchLabels: {app: acme-wallet}
+  template:
+    metadata:
+      labels: {app: acme-wallet, lab: "86"}
+    spec:
+      containers:
+        - name: credential-provider
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          # Acme: Acme's corporate-card wallet (Credential Provider)
+          args: ["payments.server", "credential-provider"]
+          ports:
+            - {name: http, containerPort: 8411}
+          env:
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "8411"}
+            - {name: AP2_MERCHANT_URL, value: "http://northwind-sales.agents.svc.cluster.local:8410"}
+            - {name: AP2_CREDENTIAL_PROVIDER_URL, value: "http://acme-wallet.agents.svc.cluster.local:8411"}
+            - {name: AP2_PROCESSOR_URL, value: "http://northwind-payments.agents.svc.cluster.local:8412"}
+            - {name: AP2_TRUSTED_SURFACE_URL, value: "http://acme-approvals.agents.svc.cluster.local:8413"}
+          readinessProbe:
+            httpGet: {path: /.well-known/jwks.json, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: northwind-payments
+  namespace: agents
+  labels: {app: northwind-payments, lab: "86"}
+spec:
+  selector: {app: northwind-payments}
+  ports:
+    - {name: http, port: 8412, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: northwind-payments
+  namespace: agents
+  labels: {app: northwind-payments, lab: "86"}
+spec:
+  # One replica: each service keeps its state (checkouts, tokens, budget used)
+  # in memory, which is fine for a lab and wrong for production.
+  replicas: 1
+  selector:
+    matchLabels: {app: northwind-payments}
+  template:
+    metadata:
+      labels: {app: northwind-payments, lab: "86"}
+    spec:
+      containers:
+        - name: processor
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          # Northwind: the vendor's payment processor
+          args: ["payments.server", "processor"]
+          ports:
+            - {name: http, containerPort: 8412}
+          env:
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "8412"}
+            - {name: AP2_MERCHANT_URL, value: "http://northwind-sales.agents.svc.cluster.local:8410"}
+            - {name: AP2_CREDENTIAL_PROVIDER_URL, value: "http://acme-wallet.agents.svc.cluster.local:8411"}
+            - {name: AP2_PROCESSOR_URL, value: "http://northwind-payments.agents.svc.cluster.local:8412"}
+            - {name: AP2_TRUSTED_SURFACE_URL, value: "http://acme-approvals.agents.svc.cluster.local:8413"}
+          readinessProbe:
+            httpGet: {path: /.well-known/jwks.json, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acme-approvals
+  namespace: agents
+  labels: {app: acme-approvals, lab: "86"}
+spec:
+  selector: {app: acme-approvals}
+  ports:
+    - {name: http, port: 8413, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acme-approvals
+  namespace: agents
+  labels: {app: acme-approvals, lab: "86"}
+spec:
+  # One replica: each service keeps its state (checkouts, tokens, budget used)
+  # in memory, which is fine for a lab and wrong for production.
+  replicas: 1
+  selector:
+    matchLabels: {app: acme-approvals}
+  template:
+    metadata:
+      labels: {app: acme-approvals, lab: "86"}
+    spec:
+      containers:
+        - name: trusted-surface
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          # Acme: the page where a person approves (Trusted Surface)
+          args: ["payments.server", "trusted-surface"]
+          ports:
+            - {name: http, containerPort: 8413}
+          env:
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "8413"}
+            - {name: AP2_MERCHANT_URL, value: "http://northwind-sales.agents.svc.cluster.local:8410"}
+            - {name: AP2_CREDENTIAL_PROVIDER_URL, value: "http://acme-wallet.agents.svc.cluster.local:8411"}
+            - {name: AP2_PROCESSOR_URL, value: "http://northwind-payments.agents.svc.cluster.local:8412"}
+            - {name: AP2_TRUSTED_SURFACE_URL, value: "http://acme-approvals.agents.svc.cluster.local:8413"}
+            # The code a person types to approve. A stand-in for the passkey or
+            # biometric step a real approval page would use.
+            - {name: TS_APPROVAL_CODE, value: "246810"}
+          readinessProbe:
+            httpGet: {path: /.well-known/jwks.json, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}

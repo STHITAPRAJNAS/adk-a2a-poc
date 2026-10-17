@@ -36,12 +36,25 @@ RUN pip install --no-cache-dir \
         "asyncpg>=0.29" \
         "greenlet>=3.0" \
         "sqlalchemy>=2.0" \
-        "opentelemetry-exporter-otlp-proto-http>=1.30"
+        "opentelemetry-exporter-otlp-proto-http>=1.30" \
+        "jwcrypto==1.5.6" \
+        "sd-jwt==0.10.4"
+
+# Lab 86 (agent payments): the official AP2 SDK, pinned to a commit. It is not
+# on PyPI, and it pins older cryptography/pytest than the rest of the image, so
+# it goes in with --no-deps on top of the two libraries above. git is needed
+# only for this step and removed again.
+ARG AP2_SDK="ap2 @ git+https://github.com/google-agentic-commerce/AP2@e1ea56db72a6385bce3e5c1112b3a56ce60acb43"
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && pip install --no-cache-dir --no-deps "$AP2_SDK" \
+    && apt-get purge -y git && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 COPY common/         ./common/
 COPY agents/         ./agents/
 COPY remote_agents/  ./remote_agents/
 COPY servers/        ./servers/
+COPY payments/       ./payments/
 # The probes ride along so the production labs (80-83) can drive the agents
 # from a pod inside the cluster, which survives the pod deletions they cause.
 COPY scripts/        ./scripts/

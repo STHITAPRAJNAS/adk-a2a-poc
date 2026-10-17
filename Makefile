@@ -1,6 +1,6 @@
 PYTHON ?= $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
-.PHONY: help venv install env run run-remote run-orchestrator stop demo demo-approve demo-reject cards chain chain-reject chain-direct probe probe-card wrong-resume test test-live lint logs clean
+.PHONY: help venv install env run run-remote run-orchestrator stop demo demo-approve demo-reject cards chain chain-reject chain-direct probe probe-card wrong-resume install-payments run-payments ap2 test test-live lint logs clean
 
 help:  ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -10,6 +10,19 @@ venv:  ## Create .venv
 
 install:  ## Install the project and dev extras into .venv
 	$(PYTHON) -m pip install -e ".[dev]"
+
+AP2_SDK = ap2 @ git+https://github.com/google-agentic-commerce/AP2@e1ea56db72a6385bce3e5c1112b3a56ce60acb43
+
+install-payments:  ## Lab 86: install the AP2 SDK (pinned commit) and its two libraries
+	$(PYTHON) -m pip install -e ".[payments]"
+	$(PYTHON) -m pip install --no-deps "$(AP2_SDK)"
+
+run-payments:  ## Lab 86: start merchant, wallet, processor and approval page (:8410-8413)
+	./scripts/run_payments.sh
+
+ap2:  ## Lab 86: human-present then autonomous purchases, approving as the person
+	$(PYTHON) scripts/ap2_probe.py --code 246810 direct
+	$(PYTHON) scripts/ap2_probe.py --code 246810 autonomous --buys eu,us,eu
 
 env:  ## Create .env from the template if it does not exist
 	@test -f .env || (cp .env.example .env && echo "wrote .env — add your GOOGLE_API_KEY")

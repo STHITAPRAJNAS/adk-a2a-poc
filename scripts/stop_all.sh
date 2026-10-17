@@ -3,7 +3,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-for name in orchestrator remote; do
+for name in orchestrator remote ap2-merchant ap2-credential-provider ap2-processor ap2-trusted-surface; do
   pidfile="logs/${name}.pid"
   if [ -f "$pidfile" ]; then
     pid=$(cat "$pidfile")
@@ -17,4 +17,5 @@ done
 # Belt and braces for servers started by hand rather than by run_all.sh.
 pkill -f "servers.orchestrator_server" 2>/dev/null && echo "stopped stray orchestrator"
 pkill -f "servers.remote_agent_server" 2>/dev/null && echo "stopped stray remote agent"
+pkill -f "payments[.]server" 2>/dev/null && echo "stopped stray AP2 services"
 exit 0

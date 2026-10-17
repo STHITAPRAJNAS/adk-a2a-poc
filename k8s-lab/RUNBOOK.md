@@ -606,11 +606,17 @@ alias probe='kubectl -n agents exec a2a-probe -- python scripts/a2a_prod_probe.p
 | [83](labs/83-tracing/) | export spans: two unrelated traces | `TRACE_PROPAGATION=1` | `./scripts/verify-83-tracing.sh` |
 | [84](labs/84-replicas/) | two replicas, one task store: subscribe or cancel on the other pod | `A2A_OWNER_ROUTING=1` | `./scripts/verify-84-replicas.sh` |
 | [85](labs/85-loops/) | two concierges pointed at each other: one request, endless hops | `A2A_MAX_HOPS=4` | `./scripts/verify-85-loops.sh` |
+| [86](labs/86-agent-payments/) | the release agent buys capacity: was it approved, is it this purchase, can the card leak? | AP2 mandates signed on an approval page, checked by vendor, wallet and processor | `./scripts/verify-86-payments.sh` |
 
 Labs 84 and 85 deploy their own copies of the agents next to the chart's, so
 they work whether or not 80–83 are applied; after `make image` for them,
 recreate the probe pod (`kubectl -n agents delete pod a2a-probe`, then
 `make probe`) so it runs the new image.
+
+Lab 86 adds four small services (a vendor's A2A sales agent, its payment
+processor, a corporate wallet and an approval page) and gives the release agent
+buying tools with `kubectl set env`. Do it with lab 82 undone (`make
+reset-agents`), since its probe calls the release agent directly.
 
 Do 80–83 in order: 82 closes the agents to callers without a token, which the
 earlier north-south labs do not send, so its README ends with the undo. Each

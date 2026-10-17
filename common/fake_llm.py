@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 import uuid
 from collections.abc import AsyncGenerator, Callable
 
@@ -128,6 +130,7 @@ class ScriptedLlm(BaseLlm):
 _RELEASE_WORDS = (
     "deploy", "release", "roll out", "rollout", "ship",
     "readiness", "compliance", "approval", "promote",
+    "buy", "purchase", "capacity", "spending", "approved",
 )
 
 
@@ -179,10 +182,73 @@ def _parse_release_request(text: str) -> tuple[str, str, str]:
     return service, version, environment
 
 
+_REQUEST_ID = re.compile(r"\breq_[0-9a-f]{8,}\b")
+
+
+def _payments_decider(conversation: Conversation) -> LlmResponse | None:
+    """Lab 86: buying burst capacity over AP2. None when the turn is not about buying."""
+    last = conversation.contents[-1] if conversation.contents else None
+    ran = [p.function_response for p in (last.parts or []) if p.function_response] if last else []
+    if ran and ran[0].name in _PAYMENT_TOOLS:
+        resp = ran[0].response if isinstance(ran[0].response, dict) else {}
+        status = resp.get("status")
+        if status == "awaiting_approval":
+            return _text(
+                f"Approval needed ({resp.get('request_id')}): open {resp.get('approval_url')} "
+                "and approve, then tell me to continue with that request id."
+            )
+        if status == "refused":
+            return _text(
+                f"Purchase refused by the {resp.get('refused_by')}: {resp.get('error')}: "
+                f"{resp.get('reason')}. Nothing was bought; I will not retry around a refusal."
+            )
+        if status == "purchased":
+            return _text(
+                f"Bought: order {resp.get('order_id')} for "
+                f"${resp.get('total_cents', 0) / 100:.2f} (payment {resp.get('payment_id')})."
+            )
+        if status == "approved":
+            limits = resp.get("limits")
+            return _text(f"Spending limits approved; I can now buy within them: {limits}")
+        return _text(f"{ran[0].name}: {json.dumps(resp, default=str)}")
+
+    text = conversation.last_user_text()
+    lowered = text.lower()
+    request_id = (_REQUEST_ID.search(text) or [None])[0]
+    if not request_id and not any(w in lowered for w in _PAYMENT_WORDS):
+        return None
+    if "limit" in lowered or "spending" in lowered or "delegat" in lowered:
+        if request_id:
+            return _call("check_spending_limits", request_id=request_id)
+        return _call("request_spending_limits", purpose=text[:120])
+    if request_id:
+        return _call("complete_purchase", request_id=request_id)
+    if "ci" in lowered.split() or "minutes" in lowered:
+        return _call("prepare_purchase", sku="nw-ci-minutes-1000", quantity=1)
+    if "offer" in lowered or "price" in lowered:
+        return _call("search_capacity", query="burst")
+    return _call("buy_burst_capacity", region="us" if " us" in f" {lowered}" else "eu", blocks=4)
+
+
+_PAYMENT_WORDS = ("buy", "purchase", "capacity", "spending", "limits", "offers")
+_PAYMENT_TOOLS = {
+    "search_capacity",
+    "prepare_purchase",
+    "complete_purchase",
+    "request_spending_limits",
+    "check_spending_limits",
+    "buy_burst_capacity",
+}
+
+
 def _deployment_decider(conversation: Conversation) -> LlmResponse:
     denial = conversation.latest_policy_denial()
     if denial:
         return _text(f"Blocked by policy: cannot run `{denial['tool']}`. {denial.get('message', '')}")
+    if os.environ.get("AP2_MERCHANT_URL", "").strip():  # payments_tools.enabled()
+        decided = _payments_decider(conversation)
+        if decided is not None:
+            return decided
     request_text = conversation.last_user_text()
     service, version, environment = _parse_release_request(request_text)
 

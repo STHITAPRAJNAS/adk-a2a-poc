@@ -42,6 +42,17 @@ spec:
         # Where `pause` remembers the task it parked, for `resume` and `cancel`.
         - name: A2A_PROBE_STATE
           value: /tmp/a2a-probe-state.json
+        # Lab 86: where the AP2 services live (scripts/ap2_probe.py).
+        - name: AP2_MERCHANT_URL
+          value: http://northwind-sales.agents.svc.cluster.local:8410
+        - name: AP2_CREDENTIAL_PROVIDER_URL
+          value: http://acme-wallet.agents.svc.cluster.local:8411
+        - name: AP2_PROCESSOR_URL
+          value: http://northwind-payments.agents.svc.cluster.local:8412
+        - name: AP2_TRUSTED_SURFACE_URL
+          value: http://acme-approvals.agents.svc.cluster.local:8413
+        - name: AP2_TRUSTED_SURFACE_PUBLIC_URL
+          value: http://127.0.0.1:8413
       resources:
         requests: {cpu: 10m, memory: 96Mi}
         limits: {memory: 256Mi}
