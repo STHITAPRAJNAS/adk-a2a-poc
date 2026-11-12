@@ -26,6 +26,7 @@ from google.adk.agents import LlmAgent
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.adk.apps import App, ResumabilityConfig
 
+from common import budget
 from common.config import get_settings, resolve_model
 from common.downstream import make_downstream_client, surface_downstream_error
 from common.identity import make_scope_guard
@@ -140,6 +141,10 @@ def build_agent() -> LlmAgent:
         description="Front door for platform engineers asking about releases.",
         instruction=_INSTRUCTION,
         sub_agents=[build_remote_deployment_agent()],
+        # Lab 89: with A2A_TOKEN_BUDGET, each model call is charged to the
+        # request's budget, and the agent stops once it is spent.
+        before_model_callback=budget.before_model if settings.token_budget else None,
+        after_model_callback=budget.after_model if settings.token_budget else None,
         # When OPA_URL is set, every tool call (including transfer_to_agent) is
         # checked against OPA before it runs. None when unset → no-op.
         # With AGENT_AUTH=jwt (lab 82) delegating at all needs release:request.

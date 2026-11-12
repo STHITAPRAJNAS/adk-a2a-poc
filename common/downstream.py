@@ -6,6 +6,7 @@ and each is switched on by a different lab:
 * identity (lab 82) — ``DOWNSTREAM_AUTH``: attach a token for the next hop
 * tracing  (lab 83) — ``TRACE_PROPAGATION``: attach ``traceparent``
 * loops    (lab 85) — ``A2A_MAX_HOPS``: attach the delegation trail
+* budgets  (lab 89) — ``A2A_TOKEN_BUDGET``: attach the tokens left
 * cancel   (lab 81) — the propagated ``CancelTask`` must go out with both
 
 ``RemoteA2aAgent`` takes this client for the normal conversation, and
@@ -21,6 +22,7 @@ from typing import Any
 
 import httpx
 
+from common.budget import add_budget
 from common.config import Settings, get_settings
 from common.hops import add_trail
 from common.identity import TokenExchanger, make_downstream_auth_hook
@@ -46,6 +48,8 @@ def request_hooks(audience: str, settings: Settings | None = None) -> list[Any]:
         hooks.append(inject_trace_headers)
     if settings.max_hops:
         hooks.append(add_trail)
+    if settings.token_budget:
+        hooks.append(add_budget)
     auth = make_downstream_auth_hook(
         settings.downstream_auth, audience=audience, exchanger=_exchanger()
     )

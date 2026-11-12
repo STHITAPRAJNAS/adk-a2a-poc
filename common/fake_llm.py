@@ -105,6 +105,29 @@ def _call(name: str, **args: object) -> LlmResponse:
     )
 
 
+def _chars(content: types.Content | None) -> int:
+    total = 0
+    for part in (content.parts if content else None) or []:
+        if part.text:
+            total += len(part.text)
+        elif part.function_call is not None:
+            call = part.function_call
+            total += len(json.dumps(call.args or {})) + len(call.name or "")
+        elif part.function_response is not None:
+            total += len(json.dumps(part.function_response.response or {}, default=str))
+    return total
+
+
+def _usage(request: LlmRequest, response: LlmResponse) -> types.GenerateContentResponseUsageMetadata:  # noqa: E501
+    config = request.config
+    instruction = str(getattr(config, "system_instruction", "") or "") if config else ""
+    prompt = (len(instruction) + sum(_chars(c) for c in request.contents or [])) // 4 + 1
+    output = _chars(response.content) // 4 + 1
+    return types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=prompt, candidates_token_count=output, total_token_count=prompt + output
+    )
+
+
 class ScriptedLlm(BaseLlm):
     """A ``BaseLlm`` that delegates the next move to a pure Python decider."""
 
@@ -115,6 +138,9 @@ class ScriptedLlm(BaseLlm):
     ) -> AsyncGenerator[LlmResponse, None]:
         conversation = Conversation(list(llm_request.contents or []))
         response = self.decider(conversation)
+        # Report token usage the way a real model does, so traces (lab 83) and
+        # budgets (lab 89) have numbers to work with: about 4 characters a token.
+        response.usage_metadata = _usage(llm_request, response)
         logger.debug(
             "ScriptedLlm(%s) -> %s",
             self.model,

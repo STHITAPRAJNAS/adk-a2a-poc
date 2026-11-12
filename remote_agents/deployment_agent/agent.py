@@ -16,6 +16,7 @@ from __future__ import annotations
 from google.adk.agents import LlmAgent
 from google.adk.apps import App, ResumabilityConfig
 
+from common import budget
 from common.config import get_settings, resolve_model
 from common.identity import make_scope_guard
 from common.opa_guard import make_opa_tool_guard
@@ -91,6 +92,10 @@ def build_agent() -> LlmAgent:
         ),
         instruction=_INSTRUCTION + (_PAYMENTS_INSTRUCTION if payments_tools.enabled() else ""),
         tools=tools.ALL_TOOLS + (payments_tools.ALL_TOOLS if payments_tools.enabled() else []),
+        # Lab 89: with A2A_TOKEN_BUDGET, each model call is charged to the
+        # request's budget, and the agent stops once it is spent.
+        before_model_callback=budget.before_model if settings.token_budget else None,
+        after_model_callback=budget.after_model if settings.token_budget else None,
         # OPA decides, per call, whether each tool (check_release_readiness,
         # run_compliance_scan, request_change_approval, start_deployment) may run
         # with the given args. None when OPA_URL is unset → no-op.

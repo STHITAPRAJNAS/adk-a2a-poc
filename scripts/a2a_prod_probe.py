@@ -176,6 +176,12 @@ async def cmd_pause(args: argparse.Namespace) -> int:
                 )
             return 4
     pending = turn.pending
+    budget_text = next((t for t in turn.texts if "Budget exhausted" in t), None)
+    if budget_text and not turn.is_paused:
+        # Lab 89: the request ran out of tokens before it reached the gate.
+        where = "before the next hop" if "with no tokens left" in budget_text else "mid-release"
+        print(_c(RED, f"\n✗ BUDGET SPENT {where}: the request stopped instead of spending more"))
+        return 5
     if not turn.is_paused or pending is None:
         print(
             _c(RED, f"\n✗ expected the task to park at the approval gate, got {turn.final_state}")

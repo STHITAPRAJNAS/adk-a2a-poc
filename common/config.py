@@ -92,8 +92,12 @@ class Settings:
     #: Loops (lab 85): refuse a request whose delegation trail already holds
     #: this agent, or is longer than this many hops. 0 = off.
     max_hops: int
+    #: Budgets (lab 89): tokens one request may spend on this agent and the
+    #: agents after it, carried on each hop. 0 = off.
+    token_budget: int
     #: Turn a downstream agent's JSON-RPC error into the answer the user sees,
-    #: instead of ADK's empty COMPLETED. Defaults to on with A2A_MAX_HOPS.
+    #: instead of ADK's empty COMPLETED. Defaults to on with A2A_MAX_HOPS or
+    #: A2A_TOKEN_BUDGET.
     surface_downstream_errors: bool
     #: Inbound auth on the A2A endpoint: ``off`` or ``jwt``.
     agent_auth: str
@@ -212,8 +216,10 @@ def get_settings() -> Settings:
         owner_routing=_env_bool("A2A_OWNER_ROUTING", False),
         cluster_mode=_env_bool("A2A_CLUSTER_MODE", False),
         max_hops=_env_int("A2A_MAX_HOPS", 0),
+        token_budget=_env_int("A2A_TOKEN_BUDGET", 0),
         surface_downstream_errors=_env_bool(
-            "SURFACE_DOWNSTREAM_ERRORS", _env_int("A2A_MAX_HOPS", 0) > 0
+            "SURFACE_DOWNSTREAM_ERRORS",
+            _env_int("A2A_MAX_HOPS", 0) > 0 or _env_int("A2A_TOKEN_BUDGET", 0) > 0,
         ),
         agent_auth=_env("AGENT_AUTH", "off").strip().lower(),
         downstream_auth=_env("DOWNSTREAM_AUTH", "none").strip().lower(),

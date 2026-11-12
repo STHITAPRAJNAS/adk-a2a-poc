@@ -18,6 +18,8 @@ A2A_OWNER_ROUTING      subscribe/cancel reach the pod that runs    84
 A2A_CLUSTER_MODE       the same, the SDK's way: versioned writes   84
                        and a shared event stream in the database
 A2A_MAX_HOPS           a delegation loop is refused, not followed  85
+A2A_TOKEN_BUDGET       one request's token budget, carried across  89
+                       hops; each agent charges its model calls
 SURFACE_DOWNSTREAM_    a downstream refusal reaches the user as    85
   ERRORS               text (on by default with A2A_MAX_HOPS)
 =====================  ==========================================  ========
@@ -139,6 +141,16 @@ def after_app(app: Any, settings: Settings, *, agent_name: str) -> None:
         app.user_middleware.append(
             Middleware(HopGuardMiddleware, agent=agent_id, max_hops=settings.max_hops)
         )
+    if settings.token_budget:
+        # After the hop guard: a loop is refused for being a loop, not for cost.
+        import os
+
+        from common.budget import BudgetMiddleware
+
+        agent_id = os.environ.get("A2A_AGENT_ID", "").strip() or agent_name
+        app.user_middleware.append(
+            Middleware(BudgetMiddleware, agent=agent_id, limit=settings.token_budget)
+        )
     if settings.owner_routing and settings.task_store_uri:
         from common.task_ownership import OwnerRoutingMiddleware
 
@@ -177,6 +189,8 @@ def describe(settings: Settings, *, port: int | None = None) -> list[str]:
         lines.append("replicas     a2a-sdk cluster mode: versioned writes, shared event stream")
     if settings.max_hops:
         lines.append(f"loops        refused; at most {settings.max_hops} hops")
+    if settings.token_budget:
+        lines.append(f"budget       {settings.token_budget} tokens per request, carried downstream")
     if settings.surface_downstream_errors:
         lines.append("errors       a downstream refusal is shown to the user")
     return lines

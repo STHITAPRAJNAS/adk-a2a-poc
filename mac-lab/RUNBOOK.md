@@ -376,6 +376,7 @@ alias probe='kubectl -n agents exec a2a-probe -- python scripts/a2a_prod_probe.p
 | [86](labs/86-agent-payments/) | the release agent buys capacity: was it approved, is it this purchase, can the card leak? | AP2 mandates signed on an approval page, checked by vendor, wallet and processor | `./scripts/verify-86-payments.sh` |
 | [87](labs/87-egress-and-tools/) | the release agent can reach any website and every tool, including `rollback_production` | default-deny egress, and an MCP-aware gateway that allows two tools | `./scripts/verify-87-egress.sh` |
 | [88](labs/88-agent-sandbox/) | an agent waiting for a person holds a pod the whole time | an Agent Sandbox: suspend (pod gone, disk kept), resume on the same disk | `./scripts/verify-88-sandbox.sh` |
+| [89](labs/89-budgets/) | one request through two agents, each spending tokens nobody capped | `A2A_TOKEN_BUDGET`: a budget carried on every hop, charged per model call, refused at zero | `./scripts/verify-89-budgets.sh` |
 
 Labs 84 and 85 deploy their own copies of the agents next to the chart's, so
 they work whether or not 80–83 are applied; after `make image` for them,
@@ -393,6 +394,8 @@ On an 8 GB Docker Desktop, run each lab's **Clean up** before the next: labs
 Lab 87 needs `make image` first (the image now carries an MCP server). Lab 88
 installs the Agent Sandbox controller (`AGENT_SANDBOX_VERSION` in
 `versions.env`) and runs its own copy of the release agent next to the chart's.
+Lab 89 needs `make image` and a new probe pod; it changes the chart's agents
+with `kubectl set env`, and its step 4 reuses lab 83's Jaeger.
 
 Do 80–83 in order: 82 closes the agents to callers without a token, which the
 earlier north-south labs do not send, so its README ends with the undo. Each
