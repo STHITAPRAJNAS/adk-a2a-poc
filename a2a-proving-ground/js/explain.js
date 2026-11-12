@@ -587,6 +587,68 @@
     ],
   };
 
+  E["ap2-rails"] = {
+    plain: `<p>AP2 is not the only protocol for agents and money. <b>x402</b> lets a program pay for one web request on the spot: the server says "402, pay this", the program pays and asks again. <b>ACP</b> lets a chat app check out with a shop. <b>UCP</b> gives shops one way to serve many agent apps.</p>
+      <p>AP2's own question is different: can we prove a person approved this? The others move the money or run the checkout, and can sit next to it.</p>`,
+    terms: [
+      ["402 Payment Required", "An old HTTP status code that x402 finally puts to use: pay, then retry."],
+      ["facilitator", "The x402 service that checks a signed payment and settles it."],
+      ["delegated payment token", "ACP's card stand-in: good for one checkout, up to one amount, until one time."],
+      ["rail", "A way money (or the approval for it) travels."],
+    ],
+    tryThis: [
+      "Send the request and open each wire row: decode the PAYMENT-REQUIRED and PAYMENT-SIGNATURE headers.",
+      "Turn on <b>Client edits the amount it signs</b> and send again.",
+      "Sort the four scenarios in the second lab.",
+    ],
+  };
+
+  E["agent-identity"] = {
+    plain: `<p>When an agent does something, three parties are involved: the person who asked, the agent that acted, and the program that actually made the call. A good audit log can name all three.</p>
+      <p>Using one shared account for the agent hides the person. Passing the person's own token along hides the agent. A token that names the person <em>and</em> the agent (the <code>act</code> claim), checked over a connection that proves which program is calling, answers every question.</p>`,
+    terms: [
+      ["sub", "The token's subject: here, the person the action is for."],
+      ["act", "RFC 8693's actor claim: who is acting on the subject's behalf, nested once per hop."],
+      ["workload identity", "An identity for a running service (SPIFFE), proven by mutual TLS, not by a copied token."],
+      ["audit log", "The record that says who did what, when. What you read after something goes wrong."],
+    ],
+    tryThis: [
+      "Click through the four models and watch which audit questions become answerable.",
+      "Compare the <b>acting</b> and <b>caller</b> lines between the last two models.",
+    ],
+  };
+
+  E["events"] = {
+    plain: `<p>Most agents sit idle most of the day. If their work arrives as events in a queue, Kubernetes (with KEDA) can run <em>no</em> copies of the agent while the queue is empty, and start one when something arrives.</p>
+      <p>The work simply waits in the queue during the start-up. Plain web requests can't wait like that unless something holds them, which is why scale-to-zero needs a buffer for HTTP.</p>`,
+    terms: [
+      ["scale to zero", "Running no pods at all until there is work."],
+      ["KEDA", "A Kubernetes add-on that scales a Deployment from outside signals such as queue length."],
+      ["cold start", "The time from 'work arrived' to 'a pod is ready to do it'."],
+      ["cooldownPeriod", "How long KEDA waits with nothing to do before removing the last pod."],
+    ],
+    tryThis: [
+      "Compare <b>always on</b> with <b>KEDA on a queue</b>: pod-minutes and how long the incident waited.",
+      "Try <b>scale to zero on HTTP, no buffer</b>.",
+      "Change <b>cooldownPeriod</b> and <b>pollingInterval</b> and watch the chart and the YAML.",
+    ],
+  };
+
+  E["skills"] = {
+    plain: `<p>A skill is a folder of instructions (and sometimes small programs) an agent can pick up when a task calls for it, like a recipe card. The agent only sees each card's title and one-line summary until it decides to use one.</p>
+      <p>Installing someone else's skill means putting their words in your agent's head and their code on your machine. Check where it came from, pin the exact contents, and look at what changed when it updates.</p>`,
+    terms: [
+      ["SKILL.md", "The skill's main file: a short header (name, description) and the instructions."],
+      ["progressive disclosure", "Loading only the summary first, and the rest when the skill is chosen."],
+      ["pin", "Recording the exact contents (a hash) you reviewed, so a change can't slip in."],
+      ["supply chain", "Everything you depend on that someone else wrote."],
+    ],
+    tryThis: [
+      "Install each of the three skills and read the checks.",
+      "Compare <b>release-notes (honest)</b> with <b>release-notes (upstream changed)</b>: which check catches the difference?",
+    ],
+  };
+
   E["fe-live"] = {
     plain: `<p>This page becomes a real A2A client of the concierge running on your own laptop. It reads the card, streams a release, shows the approval as a form, sends your answer back, follows the deployment and finishes the task.</p>
       <p>Everything from the previous lessons, against real agents, from a real browser.</p>`,

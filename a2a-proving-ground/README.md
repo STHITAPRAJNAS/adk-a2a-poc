@@ -1,7 +1,7 @@
 # A2A Proving Ground
 
 An interactive website for learning the **Agent2Agent (A2A) protocol, specification 1.0**, by
-driving it. Thirty-seven lessons in nine tracks, each with the spec's rules in plain language, an animated lab you
+driving it. Forty-two lessons in nine tracks, each with the spec's rules in plain language, an animated lab you
 operate, a **wire inspector** that shows the exact HTTP start line, headers and JSON body of every
 exchange, and a short quiz.
 
@@ -104,6 +104,7 @@ Then open http://localhost:8765/#fe-live and press **Connect**. The agents accep
 | | Polling, streaming, push | A race of all three on one job: wasted polls, a dropped stream re-attached with `SubscribeToTask`, an authenticated webhook; **safe retries** after a lost response (`messageId`, look before resending) |
 | Security | Authentication | Seven schemes animated end to end (API key, Bearer, OAuth2 client credentials, authorization code + **real PKCE**, device code, OIDC, mTLS); 401 vs 403 tester; token-in-payload anti-pattern |
 | | Authorization and in-task auth | Tenant scoping (`ListTasks`, TaskNotFound instead of 403); scope-gated skills; a chained `AUTH_REQUIRED` flow; webhook SSRF guard |
+| | Agent identity: who did it? | One production deploy, four ways to carry identity (shared service account, forwarded user token, RFC 8693 exchange with a nested `act` claim, plus SPIFFE workload identity over mTLS): which audit questions each can answer |
 | Infrastructure | One protocol, three bindings | Any operation rendered for JSON-RPC, gRPC and HTTP+JSON; `A2A-Version` negotiation and `VersionNotSupportedError`; error decoder |
 | | Proxies and gateways | L4 mesh vs HTTP proxy vs A2A-aware gateway: what each sees, logs and can enforce; idle timeouts and buffering vs SSE; replicas and the task store; rewriting the card URL |
 | | Extensions | Declare / activate (`A2A-Extensions`) / metadata by URI; `ExtensionSupportRequiredError`; version mismatch; a real one: AP2 (its own track below) |
@@ -116,6 +117,8 @@ Then open http://localhost:8765/#fe-live and press **Connect**. The agents accep
 | | Remote agents are untrusted input | Prompt injection, false success, bad payloads vs layered defences (data not instructions, validation, policy, out-of-band checks, humans) |
 | | Two replicas, one task | A shared task store, two pods behind a Service: `SubscribeToTask` on the other pod gets a snapshot then silence, `CancelTask` there is **resurrected** by the owner; owner forwarding on/off; the fixes compared (this repo's `A2A_OWNER_ROUTING`, lab 84) |
 | | Chains, loops and who to call | Wire a three-agent graph and send one request: a delegation loop opening task after task vs the hop guard refusing the cycle or the depth with a named path (`A2A_MAX_HOPS`, lab 85); choosing among three candidate cards by requirements and preference |
+| | Event-driven agents that scale to zero | A two-hour simulated night with an incident: always-on vs KEDA on a queue (`minReplicaCount: 0`) vs HTTP scale-to-zero with no buffer; pod-minutes, waits, failed requests, and the ScaledObject for each setting |
+| | Agent skills and their supply chain | A skill inspector: what the model sees at start (name and description), a checker for hidden instructions, exfiltrating scripts and over-broad descriptions, and a **real SHA-256 pin** that catches an upstream change |
 | | Testing agents | Card contract, wire behaviour with a scripted model, conformance, production failure modes; a working **stream checker**: paste your agent's SSE output (or pick a sample) and it checks envelopes, task ids, terminal-state rules, stream endings, artifact closure and the 0.3 shape |
 | Agent payments (AP2) | Why payments need more than A2A | An offer page injects “buy 40 GPU hours”: who may sign the approval (the agent, an AI assistant, a non-agentic page with a passkey) and what the agent holds (the card number vs a scoped token) |
 | | Mandates up close | **Real ES256 SD-JWT in the browser**: the approval page signs a Payment Mandate, you choose which disclosures to present, the verifier checks signature and digests; tamper a disclosure or the payload; a live **checkout hash** that changes with one cent |
@@ -123,14 +126,16 @@ Then open http://localhost:8765/#fe-live and press **Connect**. The agents accep
 | | Approve limits once | Open mandates bound to the agent's key, the agent's `kb+sd-jwt` hop, three purchases in a row against the wallet's counters; a live **open-mandate constraint evaluator** |
 | | When the agent is tricked | Attack gallery with a "tricked agent" switch: repricing, over-limit, wrong item, replay, missing extension, and who refuses each; the who-checks-what matrix |
 | | AP2 on the A2A wire | Request builder against Northwind's sales agent: the card's required extension, `-32008`, data-part keys, `REJECTED` with `mandates_not_supported`, `COMPLETED` with receipts |
+| | Other payment rails: x402, ACP, UCP | What each protocol answers next to AP2; one **x402** paid request with the `PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` / `PAYMENT-RESPONSE` headers built and decoded (real base64), including a client that edits the amount it signs; a which-rail-fits sorter |
 | Front ends | From a screen to an agent | Four architectures (browser speaks A2A, backend-for-frontend, AG-UI, ADK's own API) with their trade-offs; a CORS preflight simulator, including the `["*"]` + credentials trap this repo had |
 | | Streaming into a page | Why not `EventSource`; a **real SSE parser** fed at any chunk size vs a naive one; tab reloads (`GetTask` + `SubscribeToTask`) and why aborting a fetch isn't `CancelTask` |
 | | Approvals and sign-ins in the UI | An approval card generated from the pending call's arguments; function-response vs plain-text answers; `AUTH_REQUIRED` as an OAuth popup |
 | | AG-UI | Step through this repo's real A2A frames translated into AG-UI 1.0 events, including the interrupt and its resume |
 | | Agent output in the browser | A **real allowlist sanitizer** against `onerror`, `javascript:` links, data-leaking images and fake login forms, previewed in a sandboxed iframe |
+| | Agent-generated UI | A **real A2UI renderer** with a client-owned catalog (an approval card whose button sends an `action` back over A2A; unknown components, leaky images and cycles refused), and a **real MCP Apps host**: this repo's `ui://` view in a sandboxed iframe over `postMessage` JSON-RPC, and a view whose network call and tool call are both refused |
 | | Drive your own agents | **Live**: this page becomes an A2A client of your local concierge — card, stream, approval form, job polling, completion, cancel |
 | Mastery | The proving ground | A full production deploy end to end with **eight injectable faults**, two of which a good client self-heals |
-| | Final checkpoint | Twenty-four questions across every track, progress table, cheat sheet |
+| | Final checkpoint | Twenty-nine questions across every track, progress table, cheat sheet |
 
 Colour means the same thing everywhere: **cobalt** client agent, **spruce** remote agent,
 **amber** gateway / proxy, **plum** authorization server, **teal** registry or store. Task states

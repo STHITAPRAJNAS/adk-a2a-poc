@@ -287,7 +287,7 @@
     track: "mastery",
     title: "Final checkpoint",
     short: "Final checkpoint",
-    thesis: "Twenty-four questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
+    thesis: "Twenty-nine questions across every track. Pass them all to complete the course. Each explanation links the idea back to the spec.",
     refs: "All lessons",
     brief: `
       <p>Take it cold. If you miss one, read the explanation, revisit the lesson, and come back.</p>
@@ -318,6 +318,21 @@
           h("tbody", {}, SPEC.errors.map(function (e) { return h("tr", {}, h("td", { class: "mono", text: e.name }), h("td", { class: "mono", text: String(e.code) }), h("td", { class: "mono", text: e.http })); })))));
     },
     quiz: [
+      { q: "An A2UI surface names a component the client's catalog does not have. The client…",
+        opts: ["Renders it from the agent's HTML", "Leaves it out: the client draws only its own components", "Downloads the component", "Fails the whole task"],
+        a: 1, why: "A2UI sends UI as data; the catalog belongs to the client." },
+      { q: "An x402 server answers 402. The client should…",
+        opts: ["Give up", "Retry with a PAYMENT-SIGNATURE for exactly what PAYMENT-REQUIRED asked, within its budget", "Send its card number", "Open an A2A task"],
+        a: 1, why: "x402 pays per request in HTTP; the server checks what was signed against what it asked." },
+      { q: "The CD system's log should show that alice asked and the release agent acted. Which token does that?",
+        opts: ["The agent's own service-account token", "alice's token, forwarded", "An exchanged token with sub=alice and act={sub: release-agent}", "No token, just mTLS"],
+        a: 2, why: "RFC 8693's act claim keeps both; forwarding loses the agent, a shared account loses the user." },
+      { q: "An agent scaled to zero by KEDA receives work from a queue. What must already hold?",
+        opts: ["Nothing", "Its tasks and sessions are durable, results go out as events, and side effects are idempotent", "It needs a GPU", "It must use HTTP only"],
+        a: 1, why: "A pod that may vanish between events cannot keep anything that matters." },
+      { q: "A skill you pinned last month has the same SKILL.md but a changed script. What should catch it?",
+        opts: ["The model", "A content hash of the whole folder, checked at install", "The description", "Its license"],
+        a: 1, why: "Skills are dependencies: pin the contents and review diffs." },
       { q: "Two replicas share a task store. A CancelTask lands on the replica not running the task and returns CANCELED. Is the task safely canceled?",
         opts: ["Yes: CANCELED is terminal", "Not necessarily: the owning pod may keep working and overwrite it unless the cancel reaches it", "Only if the client retries", "Yes, if the store is Postgres"],
         a: 1, why: "The work runs in one pod's memory. Forward the cancel to the owner, or guard writes against terminal states." },

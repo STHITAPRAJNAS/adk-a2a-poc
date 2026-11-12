@@ -905,3 +905,6 @@ table.tbl tr:last-child td { border-bottom: 0; }
   .terms { grid-template-columns: 1fr; gap: 2px; }
   .terms dd { margin-bottom: 8px; }
 }
+
+/* Long URLs in linter findings wrap instead of widening the page. */
+.findings code { white-space: normal; overflow-wrap: anywhere; }
