@@ -117,8 +117,8 @@ connection.
 | Path | Encrypted by | Caller identity | Platform sees |
 |---|---|---|---|
 | pod → pod (lab 40) | ztunnel mTLS | SPIFFE, from a cert | Mesh telemetry per workload |
-| Mac → Envoy Gateway (lab 50) | TLS at the edge | Whatever you configured | HTTP access log |
-| Mac → agentgateway (lab 60) | TLS at the edge | Whatever you configured | **A2A call log** — method, agent, task |
+| your machine → Envoy Gateway (lab 50) | TLS at the edge | Whatever you configured | HTTP access log |
+| your machine → agentgateway (lab 60) | TLS at the edge | Whatever you configured | **A2A call log** — method, agent, task |
 
 Same protocol, same agents, same result. The difference is entirely what the
 platform can see and therefore govern.

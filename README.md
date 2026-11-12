@@ -299,7 +299,7 @@ hands-on path that runs these two agents on Kubernetes with a service mesh and
 three different gateways, to make the east-west/north-south distinction
 something you can measure rather than read about. **[`mac-lab/`](mac-lab/)** is
 the same path for an Apple Silicon Mac (Docker Desktop, no GPU node). Both end
-with labs 80–85, **production hardening**: a paused task that survives its pod
+with labs 80–88, **production hardening**: a paused task that survives its pod
 being deleted, `CancelTask` that reaches the next hop, the user's identity
 carried across a hop by RFC 8693 token exchange, one trace spanning both
 agents, two replicas where subscribe and cancel reach the pod that runs the

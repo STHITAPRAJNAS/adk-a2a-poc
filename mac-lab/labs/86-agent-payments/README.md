@@ -332,6 +332,7 @@ that will fail. The checks that **protect the money** are the others.
 | the agent answers about releases, not purchases | it has no buying tools | step 2 of "Before you start" again; check `kubectl -n agents get deploy deployment-agent -o yaml \| grep AP2_` |
 | the agent says "no approved spending limits" after a purchase worked | there are two release-agent pods, or it restarted | `kubectl -n agents scale deploy/deployment-agent --replicas=1`, then approve limits again |
 | the approval link does not open | the port-forward stopped | rerun it in the second terminal |
+| on Windows, the browser cannot open `127.0.0.1:8413` | WSL is not forwarding localhost to Windows | run the port-forward with `--address 0.0.0.0`, then open `http://<WSL IP>:8413/approve/…`; `hostname -I` in WSL prints the IP |
 | `HTTP Error 401` from `payprobe agent` | lab 82's token check is on | `make reset-agents`, then step 2 of "Before you start" again |
 | `invalid_credential: ... failed verification` everywhere | a service restarted with a new key | wait a minute (keys are re-fetched), or restart all four services |
 

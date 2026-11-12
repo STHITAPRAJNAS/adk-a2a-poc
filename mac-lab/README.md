@@ -81,6 +81,11 @@ them in order the first time — they build on each other's cluster state.
 | 81 | [Cancel propagation](labs/81-cancel-propagation/) | Each hop owns its own task, so a cancel has to be forwarded — and holds released | CancelTask that reaches the specialist and voids its ticket |
 | 82 | [Delegated identity](labs/82-delegated-identity/) | Whose request is this? Audience, RFC 8693 token exchange, `act`, scopes that only shrink | The specialist deciding about *Alice*, via the concierge |
 | 83 | [Tracing](labs/83-tracing/) | Exporting spans is not enough: carry `traceparent` across the hop | One Jaeger trace spanning both agents |
+| 84 | [Replicas](labs/84-replicas/) | Two copies of one agent share a task store: subscribe or cancel on the wrong copy; owner forwarding vs the A2A library's cluster mode | Both calls reach the running task, with either fix |
+| 85 | [Loops](labs/85-loops/) | Two agents whose cards point at each other; a delegation trail and a hop limit | A loop refused in seconds, with the path named |
+| 86 | [Agent payments](labs/86-agent-payments/) | AP2: a person approves one purchase or limits once; vendor, wallet and processor check signed mandates | Purchases within limits; every attack refused by the right party |
+| 87 | [Egress and tools](labs/87-egress-and-tools/) | Default-deny egress for an agent, and an MCP-aware gateway that allows only the safe tools | No internet, one way to the tools, two of four tools visible |
+| 88 | [Agent Sandbox](labs/88-agent-sandbox/) | One agent instance as a Sandbox: suspend while a person decides, resume on the same disk | An approval that lands after suspend and resume |
 
 Supporting reading, useful at any point:
 

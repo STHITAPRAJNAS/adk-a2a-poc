@@ -387,6 +387,9 @@ processor, a corporate wallet and an approval page) and gives the release agent
 buying tools with `kubectl set env`. Do it with lab 82 undone (`make
 reset-agents`), since its probe calls the release agent directly.
 
+On an 8 GB Docker Desktop, run each lab's **Clean up** before the next: labs
+84–88 each add their own pods next to the chart's agents.
+
 Lab 87 needs `make image` first (the image now carries an MCP server). Lab 88
 installs the Agent Sandbox controller (`AGENT_SANDBOX_VERSION` in
 `versions.env`) and runs its own copy of the release agent next to the chart's.
