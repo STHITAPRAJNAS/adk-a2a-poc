@@ -50,7 +50,7 @@ reset-agents:  ## Labs 80-83 — put both agents back exactly as the chart rende
 	kubectl -n agents delete deploy ops-concierge deployment-agent --ignore-not-found
 	$(MAKE) agents
 
-probe:  ## Labs 80-89 — start the in-cluster probe pod
+probe:  ## Labs 80-91 — start the in-cluster probe pod
 	kubectl apply -f labs/80-durable-tasks/probe.yaml
 	kubectl -n agents wait --for=condition=Ready pod/a2a-probe --timeout=120s
 	-kubectl get crd authorizationpolicies.security.istio.io >/dev/null 2>&1 && \

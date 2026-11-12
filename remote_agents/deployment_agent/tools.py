@@ -178,7 +178,64 @@ def request_change_approval(
     return result
 
 
-def start_deployment(
+async def _start_in_cd(params: dict[str, Any]) -> dict[str, Any]:
+    """Lab 91: ask the CD system to start the deployment, retrying on silence.
+
+    A timeout is the ambiguous case: the CD system may have started the
+    deployment and only the answer was lost. Retrying is still right (giving
+    up would leave a release half-done and nobody sure), so the retry must be
+    safe to repeat. With IDEMPOTENT_DEPLOYS the key is the approval ticket: the
+    approved change, not this attempt, so ANY second call for the same change
+    (a retry, a repeated tool call, a second replica) starts nothing new.
+    """
+    import httpx
+
+    settings = get_settings()
+    headers = {}
+    if settings.idempotent_deploys:
+        headers["Idempotency-Key"] = params["approval_ticket"]
+    last = "no attempt made"
+    async with httpx.AsyncClient(timeout=settings.cd_timeout_seconds) as http:
+        for attempt in range(1, settings.cd_attempts + 1):
+            try:
+                resp = await http.post(
+                    f"{settings.cd_url}/deployments", json=params, headers=headers
+                )
+            except httpx.TransportError as exc:
+                last = f"{type(exc).__name__} after {settings.cd_timeout_seconds:g}s"
+                logger.warning(
+                    "CD attempt %d/%d for %s: %s, retrying",
+                    attempt,
+                    settings.cd_attempts,
+                    params["approval_ticket"],
+                    last,
+                )
+                await asyncio.sleep(0.2 * attempt)
+                continue
+            if resp.status_code >= 500:
+                last = f"HTTP {resp.status_code}"
+                await asyncio.sleep(0.2 * attempt)
+                continue
+            body = resp.json()
+            if resp.status_code >= 400:
+                return {"error": body.get("error", f"HTTP {resp.status_code}"), **body}
+            replayed = resp.headers.get("idempotent-replayed") == "true"
+            logger.info(
+                "CD attempt %d: %s %s%s",
+                attempt,
+                body.get("deployment_id"),
+                "replayed" if replayed else "started",
+                f" (Idempotency-Key {headers['Idempotency-Key']})" if headers else "",
+            )
+            return {
+                "cd_deployment_id": body.get("deployment_id"),
+                "cd_attempts": attempt,
+                "cd_replayed": replayed,
+            }
+    return {"error": "cd_unreachable", "message": f"{settings.cd_attempts} attempts: {last}"}
+
+
+async def start_deployment(
     service: str,
     version: str,
     environment: str,
@@ -202,19 +259,23 @@ def start_deployment(
       deployment details.
     """
     settings = get_settings()
-    job = JOBS.start_deployment(
-        params={
-            "service": service,
-            "version": version,
-            "environment": environment,
-            "approval_ticket": approval_ticket,
-        },
-        duration_seconds=settings.deployment_job_seconds,
-    )
+    params = {
+        "service": service,
+        "version": version,
+        "environment": environment,
+        "approval_ticket": approval_ticket,
+    }
+    cd: dict[str, Any] = {}
+    if settings.cd_url:
+        cd = await _start_in_cd(params)
+        if "error" in cd:
+            return {"status": "failed", **cd, **params}
+    job = JOBS.start_deployment(params=params, duration_seconds=settings.deployment_job_seconds)
     tool_context.state["deployment_job_id"] = job.id
     logger.info("Started deployment job %s for %s@%s", job.id, service, version)
     return {
         "status": "running",
+        **cd,
         "job_id": job.id,
         "service": service,
         "version": version,

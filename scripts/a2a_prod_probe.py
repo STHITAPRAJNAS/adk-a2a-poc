@@ -102,6 +102,14 @@ def _print_turn(turn: TurnResult, label: str) -> None:
         print(_c(CYAN, f"   downstream task  {', '.join(sorted(turn.downstream_task_ids))}"))
     for name, payload in turn.tool_responses.items():
         print(_c(DIM, f"   tool result      {name}: {json.dumps(payload, default=str)[:140]}"))
+    cd = turn.tool_responses.get(JOB_TOOL, {})
+    if cd.get("cd_deployment_id"):
+        # Lab 91: what the CD system answered, and how many tries it took.
+        attempts = int(cd.get("cd_attempts") or 1)
+        print(
+            _c(CYAN, f"   CD system        {cd['cd_deployment_id']} after {attempts} attempt(s)")
+            + (_c(DIM, "   ← replayed: nothing new started") if cd.get("cd_replayed") else "")
+        )
     requested_by = turn.tool_responses.get(HITL_TOOL, {}).get("requested_by")
     if requested_by:
         print(

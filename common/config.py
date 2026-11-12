@@ -99,6 +99,15 @@ class Settings:
     #: instead of ADK's empty COMPLETED. Defaults to on with A2A_MAX_HOPS or
     #: A2A_TOKEN_BUDGET.
     surface_downstream_errors: bool
+    #: Exactly-once (lab 91): the CD system start_deployment calls. None = the
+    #: in-process job only, as in the earlier labs.
+    cd_url: str | None
+    #: Send ``Idempotency-Key: <approval ticket>`` with each CD call, so a retry
+    #: (or any second call for the same approved change) starts nothing new.
+    idempotent_deploys: bool
+    #: How long one CD call may take, and how many times it is tried.
+    cd_timeout_seconds: float
+    cd_attempts: int
     #: Inbound auth on the A2A endpoint: ``off`` or ``jwt``.
     agent_auth: str
     #: What this agent sends downstream: ``none``, ``passthrough`` (the
@@ -221,6 +230,10 @@ def get_settings() -> Settings:
             "SURFACE_DOWNSTREAM_ERRORS",
             _env_int("A2A_MAX_HOPS", 0) > 0 or _env_int("A2A_TOKEN_BUDGET", 0) > 0,
         ),
+        cd_url=os.environ.get("CD_URL", "").strip().rstrip("/") or None,
+        idempotent_deploys=_env_bool("IDEMPOTENT_DEPLOYS", False),
+        cd_timeout_seconds=float(_env("CD_TIMEOUT_SECONDS", "3")),
+        cd_attempts=max(1, _env_int("CD_ATTEMPTS", 3)),
         agent_auth=_env("AGENT_AUTH", "off").strip().lower(),
         downstream_auth=_env("DOWNSTREAM_AUTH", "none").strip().lower(),
         sts_url=_env("STS_URL", "http://127.0.0.1:8010").rstrip("/"),

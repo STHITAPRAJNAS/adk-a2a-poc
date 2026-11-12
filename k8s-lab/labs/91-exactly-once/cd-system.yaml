@@ -1,0 +1,65 @@
+# Lab 91 — a fake CD system: what start_deployment calls once CD_URL is set.
+#
+#   cd-system  :8420  keeps a ledger of deployments (SQLite on /data) and honours
+#                     the Idempotency-Key header. POST /faults makes it lose its
+#                     next response: start the deployment, answer too late.
+#
+# No model, no agent: a plain HTTP service, like the CD system a real release
+# agent would call. Code: servers/cd_server.py.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cd-system
+  namespace: agents
+  labels: {app: cd-system, lab: "91"}
+spec:
+  selector: {app: cd-system}
+  ports:
+    - {name: http, port: 8420, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cd-system
+  namespace: agents
+  labels: {app: cd-system, lab: "91"}
+spec:
+  # One replica: the ledger is a SQLite file on this pod's disk.
+  replicas: 1
+  selector:
+    matchLabels: {app: cd-system}
+  template:
+    metadata:
+      labels: {app: cd-system, lab: "91"}
+    spec:
+      containers:
+        - name: cd
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          args: ["servers.cd_server"]
+          ports:
+            - {name: http, containerPort: 8420}
+          env:
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "8420"}
+            - {name: CD_DB, value: /data/ledger.db}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

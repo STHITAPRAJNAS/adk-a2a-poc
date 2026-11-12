@@ -20,6 +20,10 @@ A2A_CLUSTER_MODE       the same, the SDK's way: versioned writes   84
 A2A_MAX_HOPS           a delegation loop is refused, not followed  85
 A2A_TOKEN_BUDGET       one request's token budget, carried across  89
                        hops; each agent charges its model calls
+CD_URL                 start_deployment calls a CD system, with    91
+                       retries
+IDEMPOTENT_DEPLOYS     ...and an Idempotency-Key, so a retry       91
+                       starts nothing new
 SURFACE_DOWNSTREAM_    a downstream refusal reaches the user as    85
   ERRORS               text (on by default with A2A_MAX_HOPS)
 =====================  ==========================================  ========
@@ -41,7 +45,7 @@ def configure_logging() -> None:
     """
     import logging
 
-    for name in ("common", "servers"):
+    for name in ("common", "servers", "deployment_agent", "ops_concierge"):
         log = logging.getLogger(name)
         if not log.handlers:
             handler = logging.StreamHandler()
@@ -191,6 +195,11 @@ def describe(settings: Settings, *, port: int | None = None) -> list[str]:
         lines.append(f"loops        refused; at most {settings.max_hops} hops")
     if settings.token_budget:
         lines.append(f"budget       {settings.token_budget} tokens per request, carried downstream")
+    if settings.cd_url:
+        key = "Idempotency-Key = approval ticket" if settings.idempotent_deploys else "no key"
+        lines.append(
+            f"deploys      {settings.cd_url}, up to {settings.cd_attempts} attempts, {key}"
+        )
     if settings.surface_downstream_errors:
         lines.append("errors       a downstream refusal is shown to the user")
     return lines

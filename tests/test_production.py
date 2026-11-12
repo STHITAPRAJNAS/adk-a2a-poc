@@ -58,6 +58,7 @@ class Server:
         "specialist": ("servers.remote_agent_server", "REMOTE_AGENT_PORT"),
         "concierge": ("servers.orchestrator_server", "ORCHESTRATOR_PORT"),
         "sts": ("servers.sts_server", "STS_PORT"),
+        "cd": ("servers.cd_server", "PORT"),
     }
 
     def __init__(self, kind: str, port: int, log_dir: Path, **env: str):
