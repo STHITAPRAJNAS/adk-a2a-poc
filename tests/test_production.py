@@ -166,8 +166,8 @@ def _specialist_url(port: int) -> dict[str, str]:
 @pytest.mark.parametrize(
     ("stores", "resume_ok", "symptom"),
     [
-        ("none", False, "still says working"),
-        ("tasks", False, "COMPLETED, BUT WRONG"),
+        ("none", False, "COMPLETED WITH NO ANSWER"),
+        ("tasks", False, "FAILED, AND WHY"),
         ("both", True, "moved on"),
     ],
     ids=["in-memory", "task-store-only", "task-and-session-store"],

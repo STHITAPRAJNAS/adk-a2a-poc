@@ -46,14 +46,15 @@
         <tbody>
           <tr><td><b>Forward to the owner</b>: each pod records "task X runs here"; a pod that gets a subscribe or cancel for someone else's task forwards it there</td><td>Small, every replica stays equal. One extra hop for two kinds of call.</td></tr>
           <tr><td><b>Sticky routing by task id</b> at the load balancer</td><td>Needs a balancer that reads JSON-RPC bodies; breaks when the pod restarts.</td></tr>
-          <tr><td><b>A shared event bus</b> (Redis pub/sub, Postgres LISTEN/NOTIFY)</td><td>Any pod serves any stream. Replaces the SDK's in-process queues.</td></tr>
+          <tr><td><b>The SDK's cluster mode</b> (a2a-sdk 1.2+): every write carries a version, every event is also written to a shared table</td><td>No pod-to-pod traffic: the other pod tails the table (polled every 0.5 s), and a stale write from the owner is refused, so a cancel sticks. Needs only the shared database.</td></tr>
+          <tr><td><b>A shared event bus</b> (Redis pub/sub, Postgres LISTEN/NOTIFY)</td><td>Any pod serves any stream, instantly. You run the bus.</td></tr>
           <tr><td><b>One replica</b></td><td>Often the honest answer. Scale with more agents, not more copies.</td></tr>
         </tbody></table></div>
       <p>Whatever you pick, an executor that re-reads the stored state before each write, and stops when it finds a terminal one, keeps a slipped cancel from being undone.</p>
-      <div class="note ours"><span class="note-label">In this repo</span><code>A2A_OWNER_ROUTING=1</code> (<code>common/task_ownership.py</code>) forwards the two calls to the owning pod. Without it, the real agents print <code>✗ STUCK</code> and <code>✗ RESURRECTED</code> (<code>tests/test_replicas_and_loops.py</code>, lab 84). The AG-UI twin of this bug is in the <a href="#fe-agui">AG-UI lesson</a> and <code>agui/prodlike</code>: shared data, per-pod memory, a load balancer that does not care.</div>`,
+      <div class="note ours"><span class="note-label">In this repo</span><code>A2A_OWNER_ROUTING=1</code> (<code>common/task_ownership.py</code>) forwards the two calls to the owning pod; <code>A2A_CLUSTER_MODE=1</code> (<code>common/cluster_mode.py</code>) turns on the SDK's cluster mode, which ADK does not expose yet. Lab 84 runs both. Without it, the real agents print <code>✗ STUCK</code> and <code>✗ RESURRECTED</code> (<code>tests/test_replicas_and_loops.py</code>, lab 84). The AG-UI twin of this bug is in the <a href="#fe-agui">AG-UI lesson</a> and <code>agui/prodlike</code>: shared data, per-pod memory, a load balancer that does not care.</div>`,
     lab: function (bench) {
       const a = PG.lab(bench, "Two replicas behind one Service", "Lab · replica simulator");
-      const cfg = { routing: false, target: "b" };
+      const cfg = { fix: "none", target: "b" };
       let started = false, busy = false, runToken = 0;
       const stage = PG.stage(a.body, {
         actors: [
@@ -77,7 +78,7 @@
       }
       a.body.insertBefore(h("div", { class: "stack" },
         h("div", { class: "row" },
-          PG.switch("own-route", "Forward to the owning pod (A2A_OWNER_ROUTING)", cfg.routing, function (v) { cfg.routing = v; reset(); }),
+          PG.seg([{ v: "none", label: "no fix" }, { v: "route", label: "forward to owner" }, { v: "cluster", label: "SDK cluster mode" }], cfg.fix, function (v) { cfg.fix = v; reset(); }, "Fix"),
           PG.seg([{ v: "b", label: "follow-up lands on B" }, { v: "a", label: "lands on A" }], cfg.target, function (v) { cfg.target = v; reset(); }, "Load balancer picks")),
         h("div", { class: "row" }, bStart, bSub, bCancel)), stage.el);
       a.body.insertBefore(res, wire.el);
@@ -94,12 +95,13 @@
         wire.add({ actor: "client", label: "SendStreamingMessage · deploy checkout-api 2.14.0", http: SPEC.post("/a2a/deployment_agent", { Accept: "text/event-stream" }), body: SPEC.rpc("SendStreamingMessage", { message: SPEC.msg("user", ["deploy checkout-api 2.14.0 to production"]) }) });
         if (!(await stage.send("client", "lb", "SendStreamingMessage"))) return;
         if (!(await stage.send("lb", "ra", "SendStreamingMessage"))) return;
-        await stage.send("ra", "db", cfg.routing ? "task-77 · owner = A" : "task-77 WORKING");
+        await stage.send("ra", "db", cfg.fix === "route" ? "task-77 · owner = A" : cfg.fix === "cluster" ? "task-77 WORKING · v1" : "task-77 WORKING");
         if (my !== runToken) return;
         stage.badge("ra", PG.stateChip("WORKING"));
-        stage.badge("db", h("span", { class: "chip", text: cfg.routing ? "task-77 WORKING · owner A" : "task-77 WORKING" }));
+        stage.badge("db", h("span", { class: "chip", text: cfg.fix === "route" ? "task-77 WORKING · owner A" : cfg.fix === "cluster" ? "task-77 WORKING · v1 · events" : "task-77 WORKING" }));
         wire.add({ kind: "evt", actor: "server", label: "event · task-77 WORKING (compliance scan, 8 s)", body: { jsonrpc: "2.0", id: 1, result: SPEC.statusUpdate("task-77", "ctx-9", "WORKING") } });
-        if (cfg.routing) wire.add({ kind: "note", actor: "server", label: "Replica A records in the shared store: task-77 runs here, at http://10.244.1.7:8001" });
+        if (cfg.fix === "route") wire.add({ kind: "note", actor: "server", label: "Replica A records in the shared store: task-77 runs here, at http://10.244.1.7:8001" });
+        if (cfg.fix === "cluster") wire.add({ kind: "note", actor: "server", label: "Replica A writes task-77 at version 1, and every event it applies to the shared task_events table" });
         busy = false; started = true; paint();
       }
       async function follow(kind) {
@@ -112,7 +114,8 @@
         if (!(await stage.send("lb", to, method))) return;
         if (my !== runToken) return;
         const onOwner = to === "ra";
-        const forwarded = !onOwner && cfg.routing;
+        const forwarded = !onOwner && cfg.fix === "route";
+        const viaStore = !onOwner && cfg.fix === "cluster";
         if (forwarded) {
           await stage.send("rb", "db", "who owns task-77?");
           await stage.send("db", "rb", "A");
@@ -130,6 +133,20 @@
             result(res, "ok", forwarded
               ? "<b>✓ Forwarded.</b> B found that A runs task-77 and passed the subscription there; the client follows the task live to <code>INPUT_REQUIRED</code>, exactly as <code>scripts/a2a_replica_probe.py subscribe</code> reports with the switch on."
               : "<b>✓ Lucky.</b> The load balancer happened to pick the pod running the task. With two replicas, that is a coin toss on every reconnect.");
+          } else if (viaStore) {
+            await stage.send("rb", "db", "GetTask task-77");
+            await stage.send("db", "rb", "WORKING · v1");
+            await stage.send("rb", "lb", "task WORKING");
+            await stage.send("lb", "client", "task WORKING");
+            wire.add({ kind: "evt", actor: "server", label: "event · task-77 WORKING (the stored snapshot, version 1)", body: { jsonrpc: "2.0", id: 1, result: { task: SPEC.task("task-77", "ctx-9", "WORKING") } } });
+            stage.badge("ra", PG.stateChip("INPUT_REQUIRED"));
+            await stage.send("ra", "db", "event v2: INPUT_REQUIRED");
+            stage.badge("db", h("span", { class: "chip", text: "task-77 INPUT_REQUIRED · v2" }));
+            await stage.send("db", "rb", "new event (poll)");
+            await stage.send("rb", "lb", "INPUT_REQUIRED");
+            await stage.send("lb", "client", "INPUT_REQUIRED");
+            wire.add({ kind: "evt", actor: "server", label: "event · task-77 INPUT_REQUIRED (B read it from task_events, ~0.5 s after A wrote it)", body: { jsonrpc: "2.0", id: 1, result: SPEC.statusUpdate("task-77", "ctx-9", "INPUT_REQUIRED", "Waiting on human approval for CHG-4D1A") } });
+            result(res, "ok", "<b>✓ Followed through the database.</b> B served the snapshot, then tailed the shared <code>task_events</code> table, so the client saw <code>INPUT_REQUIRED</code> about half a second after A did. No call went from B to A. In lab 84 step 4 the probe prints exactly this.");
           } else {
             await stage.send("rb", "db", "GetTask task-77");
             await stage.send("db", "rb", "WORKING");
@@ -154,6 +171,19 @@
             wire.add({ kind: "in", actor: "server", label: "result · task-77 CANCELED", status: "200", body: { jsonrpc: "2.0", id: 1, result: SPEC.task("task-77", "ctx-9", "CANCELED") } });
             wire.add({ kind: "note", actor: "server", label: "GetTask a while later → CANCELED. The work stopped where it ran." });
             result(res, "ok", "<b>✓ Canceled, and it stayed canceled.</b> The cancel reached the executor doing the work" + (forwarded ? ", via B" : "") + ".");
+          } else if (viaStore) {
+            await stage.send("rb", "db", "CANCELED · v2 (was v1)");
+            stage.badge("db", h("span", { class: "chip", text: "task-77 CANCELED · v2" }));
+            await stage.send("rb", "lb", "CANCELED");
+            await stage.send("lb", "client", "CANCELED");
+            wire.add({ kind: "in", actor: "server", label: "result · task-77 CANCELED (from B, written as version 2)", status: "200", body: { jsonrpc: "2.0", id: 1, result: SPEC.task("task-77", "ctx-9", "CANCELED") } });
+            await PG.sleep(700 / PG.speed);
+            if (my !== runToken) return;
+            await stage.send("ra", "db", "INPUT_REQUIRED · based on v1", { tone: "err" });
+            await stage.send("db", "ra", "refused: stale version", { tone: "err" });
+            stage.badge("ra", PG.stateChip("CANCELED"));
+            wire.add({ kind: "note", actor: "server", label: "A's write was based on version 1; the store holds version 2. ConcurrentTaskModificationError: A stops, and CANCELED stays." });
+            result(res, "ok", "<b>✓ Canceled, and it stayed canceled.</b> B wrote <code>CANCELED</code> as a new version. A's next write was based on the old one, so the store refused it and A stopped. That is the \"check before you write\" guard, built into the SDK.");
           } else {
             await stage.send("rb", "db", "task-77 CANCELED");
             stage.badge("db", h("span", { class: "chip", text: "task-77 CANCELED" }));

@@ -16,9 +16,8 @@ only question that matters: **can the approval still land?**
  resume ─────────► task A ───────────────► task B ?
 ```
 
-You will see it fail **two different ways** before it works, and the second
-failure is the one that bites people in production, because it looks like a
-success.
+You will see it fail **two different ways** before it works. Neither failure
+says "the pod restarted": you only find out by reading what came back.
 
 ## Before you start
 
@@ -73,7 +72,10 @@ probe resume
 ```
 
 ```
-✗ the resume did not land: the stream closed and the task still says working
+   states           working → completed
+✗ COMPLETED WITH NO ANSWER: the front door finished, the release did not
+  The specialist no longer knows task 9b59…: it lived only
+  in that pod's memory, so the approval had nothing to answer.
 ```
 
 Ask the concierge why:
@@ -88,8 +90,9 @@ A2A request failed: Task 3f2c… not found
 
 The new pod answered `TaskNotFoundError` (-32001): the task lived in the old
 pod's memory. Notice also what the **caller** got: not an error, but a task
-stuck in `working` forever. A downstream failure did not propagate as a
-failure. Remember that; lab 82 shows it again.
+`completed` with nothing to say. A downstream failure did not propagate as a
+failure. (Before ADK 2.14 it was worse: the caller's task stayed `working`
+forever.) Remember that; lab 82 shows it again.
 
 ## Step 2 — persist the task store: the dangerous half-fix
 
@@ -111,10 +114,10 @@ probe resume
 ```
 
 ```
-   states           working → completed
+   states           working → failed
    agent says       Function call not found for function response ids: {'fc-…'}
-✗ COMPLETED, BUT WRONG: the A2A task survived the restart, the ADK
-  session holding the paused call did not. The approval answered nothing.
+✗ FAILED, AND WHY: the A2A task survived the restart, the ADK session
+  holding the paused call did not. The approval answered nothing.
 ```
 
 This is the important one. The task was found, so the protocol was happy. But
@@ -125,9 +128,11 @@ an ADK agent keeps **two** pieces of state:
 | A2A task store | the task: id, state, history — what `GetTask` reads | `TASK_STORE_URI` |
 | ADK session store | the paused invocation, including the pending function call the approval must answer | `SESSION_SERVICE_URI` |
 
-The task survived; the session did not. The approval arrived, matched no
-pending call, and the agent **completed the task with an error message as its
-answer**. A caller that checks only the state sees `completed`.
+The task survived; the session did not. The approval arrived and matched no
+pending call. ADK 2.14 fails the task with that error, so at least the state is
+honest. Before 2.14 the agent **completed** the task with the error message as
+its answer, and a caller that checked only the state saw success. Either way
+the approval is lost.
 
 Why was the session in memory at all? On a laptop ADK writes sessions to SQLite
 under each agent's folder. On Kubernetes it detects `KUBERNETES_SERVICE_HOST`
@@ -159,7 +164,8 @@ Or run the whole cycle as a check:
 ## What you just learned
 
 - **"Survives a restart" has two halves on ADK**, and the half people forget
-  fails silently, as `completed`.
+  loses the approval: as `failed` on ADK 2.14, as a misleading `completed`
+  before it.
 - **Durable tasks are not durable work.** Look at the tickets after a restart:
 
   ```bash

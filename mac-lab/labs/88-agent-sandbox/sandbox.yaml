@@ -1,0 +1,68 @@
+# Lab 88 — the release agent as an Agent Sandbox (kubernetes-sigs/agent-sandbox,
+# agents.x-k8s.io/v1beta1, controller v1.0.10).
+#
+# A Sandbox is one agent instance: one pod, a stable hostname, and its own
+# disk. Setting spec.operatingMode to Suspended deletes the pod and keeps the
+# disk; Running creates a new pod on the same disk.
+#
+# Both stores from lab 80 live on that disk, so a release parked at the human
+# approval gate survives a suspend and resume.
+apiVersion: agents.x-k8s.io/v1beta1
+kind: Sandbox
+metadata:
+  name: release-agent
+  namespace: agents
+  labels: {lab: "88"}
+spec:
+  operatingMode: Running
+  # A headless Service for this sandbox; its name is in status.service.
+  service: true
+  volumeClaimTemplates:
+    - metadata:
+        name: state
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 256Mi
+  podTemplate:
+    metadata:
+      labels: {app: release-agent-sandbox, lab: "88"}
+    spec:
+      # For real isolation, run on gVisor or Kata: runtimeClassName: gvisor
+      # (kind has neither, so this lab runs on the default runtime).
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: agent
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          args: ["servers.remote_agent_server"]
+          ports:
+            - {name: http-a2a, containerPort: 8001}
+          env:
+            - {name: REMOTE_AGENT_HOST, value: "0.0.0.0"}
+            - {name: REMOTE_AGENT_PORT, value: "8001"}
+            - {name: POC_FAKE_LLM, value: "1"}
+            - {name: ADK_SUPPRESS_A2A_EXPERIMENTAL_FEATURE_WARNINGS, value: "1"}
+            - {name: COMPLIANCE_SCAN_SECONDS, value: "8"}
+            - {name: TASK_STORE_URI, value: "sqlite+aiosqlite:////data/tasks.db"}
+            - {name: SESSION_SERVICE_URI, value: "sqlite+aiosqlite:////data/sessions.db"}
+          readinessProbe:
+            httpGet: {path: /health, port: http-a2a}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: state, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}

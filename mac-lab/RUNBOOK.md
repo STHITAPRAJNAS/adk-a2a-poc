@@ -306,19 +306,14 @@ say "deploy billing-worker 3.1.0 to production"  # DENIED at the first tool (fro
 
 ## Phase 6 — A2A-aware ingress  ·  ~10 min
 
-The gateways so far are HTTP-aware only; agentgateway understands A2A itself.
+agentgateway runs standalone: one pod, one config file that marks the route as
+A2A, on NodePort 30081 (host `:8081`). The config is checked against the
+v1.4.1 schema; see the lab README for the Gateway-API form.
 
 ```bash
-source versions.env
-helm upgrade --install agentgateway oci://ghcr.io/agentgateway/charts/agentgateway \
-  --version "${AGENTGATEWAY_VERSION#v}" -n agentgateway-system --create-namespace --wait
-kubectl apply -f ./labs/60-agentgateway/gateway.yaml -f ./labs/60-agentgateway/a2a-route.yaml
+kubectl apply -f ./labs/60-agentgateway/standalone.yaml
+kubectl -n agentgateway-system rollout status deploy/agentgateway
 ```
-
-> agentgateway will need the same kind treatment as Phase 5 — NodePort 30081,
-> `externalTrafficPolicy: Cluster` — so host `:8081` reaches its proxy wherever it
-> runs. Chart coordinates are **unverified**; check <https://agentgateway.dev/docs/>
-> if the install fails, and fix the file.
 
 ### ▸ Gate 6
 
@@ -379,6 +374,8 @@ alias probe='kubectl -n agents exec a2a-probe -- python scripts/a2a_prod_probe.p
 | [84](labs/84-replicas/) | two replicas, one task store: subscribe or cancel on the other pod | `A2A_OWNER_ROUTING=1` | `./scripts/verify-84-replicas.sh` |
 | [85](labs/85-loops/) | two concierges pointed at each other: one request, endless hops | `A2A_MAX_HOPS=4` | `./scripts/verify-85-loops.sh` |
 | [86](labs/86-agent-payments/) | the release agent buys capacity: was it approved, is it this purchase, can the card leak? | AP2 mandates signed on an approval page, checked by vendor, wallet and processor | `./scripts/verify-86-payments.sh` |
+| [87](labs/87-egress-and-tools/) | the release agent can reach any website and every tool, including `rollback_production` | default-deny egress, and an MCP-aware gateway that allows two tools | `./scripts/verify-87-egress.sh` |
+| [88](labs/88-agent-sandbox/) | an agent waiting for a person holds a pod the whole time | an Agent Sandbox: suspend (pod gone, disk kept), resume on the same disk | `./scripts/verify-88-sandbox.sh` |
 
 Labs 84 and 85 deploy their own copies of the agents next to the chart's, so
 they work whether or not 80–83 are applied; after `make image` for them,
@@ -389,6 +386,10 @@ Lab 86 adds four small services (a vendor's A2A sales agent, its payment
 processor, a corporate wallet and an approval page) and gives the release agent
 buying tools with `kubectl set env`. Do it with lab 82 undone (`make
 reset-agents`), since its probe calls the release agent directly.
+
+Lab 87 needs `make image` first (the image now carries an MCP server). Lab 88
+installs the Agent Sandbox controller (`AGENT_SANDBOX_VERSION` in
+`versions.env`) and runs its own copy of the release agent next to the chart's.
 
 Do 80–83 in order: 82 closes the agents to callers without a token, which the
 earlier north-south labs do not send, so its README ends with the undo. Each

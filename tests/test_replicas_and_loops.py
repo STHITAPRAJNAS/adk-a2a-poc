@@ -31,12 +31,13 @@ def servers(tmp_path):
         server.stop()
 
 
-def _replicas(servers, tmp_path, routing: bool) -> tuple[str, str]:
+def _replicas(servers, tmp_path, mode: str) -> tuple[str, str]:
     shared = {
         "TASK_STORE_URI": f"sqlite+aiosqlite:///{tmp_path}/tasks.db",
         "SESSION_SERVICE_URI": f"sqlite+aiosqlite:///{tmp_path}/sessions.db",
         "COMPLIANCE_SCAN_SECONDS": "5",
-        "A2A_OWNER_ROUTING": "1" if routing else "0",
+        "A2A_OWNER_ROUTING": "1" if mode == "routing" else "0",
+        "A2A_CLUSTER_MODE": "1" if mode == "cluster" else "0",
     }
     for port in (18041, 18042):
         servers(
@@ -67,27 +68,33 @@ def _replica_probe(command: str, a: str, b: str) -> tuple[int, str]:
 # -------------------------------------------------------------------- replicas
 
 
-@pytest.mark.parametrize("routing", [False, True], ids=["store-only", "owner-routing"])
-def test_subscribe_on_the_other_replica(servers, tmp_path, routing):
+MODES = pytest.mark.parametrize(
+    "mode", ["off", "routing", "cluster"], ids=["store-only", "owner-routing", "cluster-mode"]
+)
+
+
+@MODES
+def test_subscribe_on_the_other_replica(servers, tmp_path, mode):
     """Lab 84: SubscribeToTask lands on the pod that is not running the task."""
-    a, b = _replicas(servers, tmp_path, routing)
+    a, b = _replicas(servers, tmp_path, mode)
     code, out = _replica_probe("subscribe", a, b)
-    if routing:
-        assert code == 0 and "followed the task live to INPUT_REQUIRED" in out, out
-        assert "forwarded to replica-18041" in out, out
-    else:
+    if mode == "off":
         assert code == 3 and "STUCK" in out, out
-
-
-@pytest.mark.parametrize("routing", [False, True], ids=["store-only", "owner-routing"])
-def test_cancel_on_the_other_replica(servers, tmp_path, routing):
-    """Lab 84: CancelTask lands on the pod that is not running the task."""
-    a, b = _replicas(servers, tmp_path, routing)
-    code, out = _replica_probe("cancel", a, b)
-    if routing:
-        assert code == 0 and "stayed canceled" in out, out
     else:
+        assert code == 0 and "followed the task live to INPUT_REQUIRED" in out, out
+    if mode == "routing":
+        assert "forwarded to replica-18041" in out, out
+
+
+@MODES
+def test_cancel_on_the_other_replica(servers, tmp_path, mode):
+    """Lab 84: CancelTask lands on the pod that is not running the task."""
+    a, b = _replicas(servers, tmp_path, mode)
+    code, out = _replica_probe("cancel", a, b)
+    if mode == "off":
         assert code == 3 and "RESURRECTED" in out, out
+    else:
+        assert code == 0 and "stayed canceled" in out, out
 
 
 # ----------------------------------------------------------------------- loops

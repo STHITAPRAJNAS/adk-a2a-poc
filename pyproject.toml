@@ -9,8 +9,8 @@ dependencies = [
     # exercised on the Ollama path (OLLAMA_API_BASE set) and imported lazily, but
     # ADK gates LiteLlm behind this extra — a bare `litellm` install is not
     # enough. See common.config.resolve_model.
-    "google-adk[a2a,extensions]==2.8.0",
-    "a2a-sdk==1.1.2",
+    "google-adk[a2a,extensions]==2.14.0",
+    "a2a-sdk==1.3.0",
     "python-dotenv>=1.0",
     "uvicorn>=0.30",
     "httpx>=0.27",
@@ -20,6 +20,7 @@ dependencies = [
     "aiosqlite>=0.20",                            # lab 80: sqlite task/session store
     "sqlalchemy>=2.0",                            # lab 80: DatabaseTaskStore
     "opentelemetry-exporter-otlp-proto-http>=1.30",  # lab 83: OTLP export
+    "mcp>=2.3,<3",                                # lab 87: MCP tool server + probe
 ]
 
 [project.optional-dependencies]

@@ -15,6 +15,8 @@ DOWNSTREAM_AUTH        what token goes to the next hop             82
 TRACE_PROPAGATION      one trace across the hop                    83
 A2A_OWNER_ROUTING      subscribe/cancel reach the pod that runs    84
                        the task, with several replicas
+A2A_CLUSTER_MODE       the same, the SDK's way: versioned writes   84
+                       and a shared event stream in the database
 A2A_MAX_HOPS           a delegation loop is refused, not followed  85
 SURFACE_DOWNSTREAM_    a downstream refusal reaches the user as    85
   ERRORS               text (on by default with A2A_MAX_HOPS)
@@ -81,6 +83,17 @@ def before_app(
 
             # After cancellation.install: it wraps whatever executor is current.
             task_ownership.install(settings.task_store_uri, port=port or 8000)
+    if settings.cluster_mode:
+        import logging
+
+        if not settings.task_store_uri:
+            logging.getLogger("servers").warning(
+                "A2A_CLUSTER_MODE needs TASK_STORE_URI on a shared database; ignoring it"
+            )
+        else:
+            from common import cluster_mode
+
+            cluster_mode.install()
 
 
 def after_app(app: Any, settings: Settings, *, agent_name: str) -> None:
@@ -160,6 +173,8 @@ def describe(settings: Settings, *, port: int | None = None) -> list[str]:
             "replicas     subscribe/cancel forwarded to the owning pod "
             f"({advertise_url(port or 8000)})"
         )
+    if settings.cluster_mode and settings.task_store_uri:
+        lines.append("replicas     a2a-sdk cluster mode: versioned writes, shared event stream")
     if settings.max_hops:
         lines.append(f"loops        refused; at most {settings.max_hops} hops")
     if settings.surface_downstream_errors:

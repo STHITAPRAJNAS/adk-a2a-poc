@@ -70,6 +70,8 @@ an open mandate while one is unresolved.
 - **`Frequency` enum.** The SDK dumps payloads in python mode, so an
   `AgentRecurrence` fails to serialise; `trusted_surface._OpenPaymentMandate`
   dumps in JSON mode instead.
+- **Not the PyPI `ap2`.** PyPI's `ap2` 0.1.1 is the older AP2 (intent and
+  cart mandates, no `ap2.sdk`). This repo installs the pinned GitHub commit.
 - **Install with `--no-deps`.** The SDK pins `cryptography==46.0.5` and
   `pytest==9.0.2`; this project keeps newer ones. It needs `jwcrypto` and
   `sd-jwt` (the `payments` extra).

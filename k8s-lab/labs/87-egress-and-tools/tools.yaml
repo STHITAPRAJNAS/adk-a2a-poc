@@ -1,0 +1,130 @@
+# Lab 87 — an MCP tool server, and the only gateway that should reach it.
+#
+#   release-tools   :3001  MCP server (Streamable HTTP at /mcp) with four tools,
+#                          two of them dangerous (servers/mcp_release_tools.py)
+#   tools-gateway   :3000  agentgateway v1.4.1, standalone, in front of it: it
+#                          shows and allows only the two safe tools
+#
+# The gateway config validates against agentgateway v1.4.1's schema/config.json.
+# The allow rules are CEL; with rules present, a tool no rule matches is hidden
+# from tools/list and refused on tools/call.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tools
+  labels: {lab: "87"}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-tools
+  namespace: tools
+spec:
+  selector: {app: release-tools}
+  ports:
+    - {name: http, port: 3001, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-tools
+  namespace: tools
+  labels: {app: release-tools, lab: "87"}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: release-tools}
+  template:
+    metadata:
+      labels: {app: release-tools, lab: "87"}
+    spec:
+      containers:
+        - name: mcp
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          args: ["servers.mcp_release_tools"]
+          env:
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "3001"}
+          ports:
+            - {name: http, containerPort: 3001}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 20m, memory: 96Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tools-gateway-config
+  namespace: tools
+data:
+  config.yaml: |
+    mcp:
+      port: 3000
+      prefixMode: conditional
+      policies:
+        mcpAuthorization:
+          rules:
+          - 'mcp.tool.name == "check_change_freeze"'
+          - 'mcp.tool.name == "get_release_notes"'
+      targets:
+      - name: release-tools
+        mcp:
+          host: http://release-tools.tools.svc.cluster.local:3001/mcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tools-gateway
+  namespace: tools
+spec:
+  selector: {app: tools-gateway}
+  ports:
+    - {name: http, port: 3000, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tools-gateway
+  namespace: tools
+  labels: {app: tools-gateway, lab: "87"}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: tools-gateway}
+  template:
+    metadata:
+      labels: {app: tools-gateway, lab: "87"}
+    spec:
+      containers:
+        - name: agentgateway
+          # v1.4.1 is multi-arch (linux/arm64 + linux/amd64).
+          image: ghcr.io/agentgateway/agentgateway:v1.4.1
+          args: ["-f", "/config/config.yaml"]
+          env:
+            - {name: RUST_LOG, value: "info"}
+          ports:
+            - {name: http, containerPort: 3000}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 3
+          volumeMounts:
+            - {name: config, mountPath: /config}
+      volumes:
+        - name: config
+          configMap:
+            name: tools-gateway-config

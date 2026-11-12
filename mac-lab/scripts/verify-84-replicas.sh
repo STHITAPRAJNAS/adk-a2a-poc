@@ -11,7 +11,13 @@ if ! kubectl -n "$NS" get deploy deployment-agent-ha >/dev/null 2>&1; then
 fi
 need_probe
 R=$(env_of deployment-agent-ha A2A_OWNER_ROUTING)
-[ "$R" = 1 ] && ok "owner routing on" || no "A2A_OWNER_ROUTING is '${R:-unset}' on deployment-agent-ha (step 3)"
+C=$(env_of deployment-agent-ha A2A_CLUSTER_MODE)
+if [ "$R" = 1 ] && [ "$C" = 1 ]; then
+  no "both A2A_OWNER_ROUTING and A2A_CLUSTER_MODE are on; use one (step 3 or step 4)"
+elif [ "$R" = 1 ]; then ok "owner routing on (step 3)"
+elif [ "$C" = 1 ]; then ok "a2a-sdk cluster mode on (step 4)"
+else no "neither fix is on: A2A_OWNER_ROUTING='${R:-unset}', A2A_CLUSTER_MODE='${C:-unset}' (step 3 or 4)"
+fi
 N=$(kubectl -n "$NS" get pods -l app=deployment-agent-ha --field-selector=status.phase=Running -o name | wc -l | tr -d ' ')
 [ "$N" -ge 2 ] && ok "$N replicas running" || no "need 2 running replicas, have $N"
 

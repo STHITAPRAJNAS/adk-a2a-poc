@@ -86,6 +86,9 @@ class Settings:
     #: Replicas (lab 84): forward SubscribeToTask / CancelTask to the pod that
     #: runs the task. Needs TASK_STORE_URI on a database every replica reaches.
     owner_routing: bool
+    #: Lab 84, the SDK's way: a2a-sdk cluster mode (versioned store + shared
+    #: event stream). Needs TASK_STORE_URI on a database every replica reaches.
+    cluster_mode: bool
     #: Loops (lab 85): refuse a request whose delegation trail already holds
     #: this agent, or is longer than this many hops. 0 = off.
     max_hops: int
@@ -207,6 +210,7 @@ def get_settings() -> Settings:
         cancel_propagation=_env_bool("CANCEL_PROPAGATION", False),
         trace_propagation=_env_bool("TRACE_PROPAGATION", False),
         owner_routing=_env_bool("A2A_OWNER_ROUTING", False),
+        cluster_mode=_env_bool("A2A_CLUSTER_MODE", False),
         max_hops=_env_int("A2A_MAX_HOPS", 0),
         surface_downstream_errors=_env_bool(
             "SURFACE_DOWNSTREAM_ERRORS", _env_int("A2A_MAX_HOPS", 0) > 0

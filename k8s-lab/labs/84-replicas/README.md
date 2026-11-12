@@ -216,13 +216,65 @@ kubectl -n agents logs -l app=deployment-agent-ha --tail=50 | grep -E "running h
 You should see `running here` from one pod and `forwarding to …, which runs
 it` from the other.
 
+## Step 4 — or let the A2A library do it
+
+Since a2a-sdk 1.2 the library has its own **cluster mode**, and it fixes both
+calls through the shared database alone, with no pod-to-pod traffic. Swap the
+switches:
+
+```bash
+kubectl -n agents set env deploy/deployment-agent-ha A2A_OWNER_ROUTING=0 A2A_CLUSTER_MODE=1
+kubectl -n agents rollout status deploy/deployment-agent-ha
+./labs/84-replicas/replica-probe.sh subscribe
+./labs/84-replicas/replica-probe.sh cancel
+```
+
+What you should see:
+
+```
+    5.3s  A send       INPUT_REQUIRED
+    5.7s  B subscribe  INPUT_REQUIRED
+✓ B's subscription followed the task live to INPUT_REQUIRED
+
+    1.2s  B cancel     answered CANCELED
+    5.6s  A send       CANCELED
+✓ canceled, and it stayed canceled: the work stopped where it ran
+```
+
+No "forwarded to" this time: B answered both calls itself. How:
+
+- **Updates go through the database.** Every update A applies is also written
+  to a `task_events` table. B serves the stored snapshot, then reads new rows
+  from that table every half second. That is the 0.4 s gap between A's
+  `INPUT_REQUIRED` and B's.
+- **Writes carry a version.** B writes `CANCELED` with a new version number.
+  A's next write was based on the old version, so the database refuses it
+  (`ConcurrentTaskModificationError`) and A stops. That is the "check before
+  you write" guard from the next section, built in.
+
+See the two new tables:
+
+```bash
+kubectl -n agents exec deploy/a2a-postgres -- psql -U a2a -d a2a -c '\dt'
+```
+
+`task_events` and `task_versions` sit next to `tasks`.
+
+Which to use? Cluster mode is the library's own answer and needs nothing but
+the database every copy already shares. Owner routing (step 3) keeps updates
+instant rather than polled, and its forwarding works for any call you choose
+to send to the owner. ADK does not expose cluster mode yet; the switch is
+`common/cluster_mode.py`, which hands the library's versioned store and event
+stream to the handler ADK builds.
+
 ## Other ways to fix it
 
 | Fix | Good | Costs |
 |---|---|---|
 | Pass the call to the owner (this lab) | small change; every copy stays the same | one extra hop for two kinds of call |
 | Sticky routing: the load balancer always sends a task's calls to the same copy | no code change in the agent | the balancer must read the request body; breaks when that copy restarts |
-| A shared message bus (Redis, Postgres `LISTEN/NOTIFY`) carrying the live updates | any copy can serve any subscriber | replaces how the A2A library delivers updates: a bigger change |
+| The library's cluster mode (step 4): versioned writes and a shared event table | no extra hop; built into a2a-sdk 1.2+ | updates arrive by polling (every 0.5 s); ADK needs a small switch to turn it on |
+| A shared message bus (Redis, Postgres `LISTEN/NOTIFY`) carrying the live updates | any copy can serve any subscriber, instantly | you write and run the bus |
 | Run one copy | nothing to coordinate | no redundancy; scale by adding different agents instead |
 
 Whatever you choose, it is worth adding one more guard: before the agent
@@ -249,6 +301,7 @@ for two.
 | `error: unable to upgrade connection` or `pods "a2a-probe" not found` | the probe pod is missing | `make probe` |
 | `probe failed: … No such file` for the script | the probe pod runs the old image | `kubectl -n agents delete pod a2a-probe`, then `make probe` |
 | step 3 still says STUCK | the copies did not restart with the switch | `kubectl -n agents get deploy deployment-agent-ha -o yaml | grep -A1 OWNER_ROUTING` should show `"1"` |
+| step 4 answers `no such table: task_versions` | the pods run an image from before this lab's cluster-mode switch | `make image`, then `kubectl -n agents rollout restart deploy/deployment-agent-ha` |
 
 ## Check your work
 
@@ -256,7 +309,7 @@ for two.
 ./scripts/verify-84-replicas.sh
 ```
 
-It passes only with the fix on and both copies running.
+It passes only with one of the fixes on (step 3 or step 4) and both copies running.
 
 ## Clean up
 

@@ -32,8 +32,8 @@
       </dl>
       <h2>Three outcomes after a restart</h2>
       <ul>
-        <li><strong>Both in memory.</strong> The resume reaches a fresh process that never heard of the task: <code>TaskNotFoundError</code> (-32001). One hop up, the caller sees its own task stuck in <code>WORKING</code>, because the error did not propagate.</li>
-        <li><strong>Task store durable, session not.</strong> The task is found, so the protocol is satisfied. The approval matches no pending call; ADK answers "Function call not found" and the task ends <code>COMPLETED</code> with that error as its answer. A caller that checks only the state is misled.</li>
+        <li><strong>Both in memory.</strong> The resume reaches a fresh process that never heard of the task: <code>TaskNotFoundError</code> (-32001). One hop up, the caller's own task ends <code>COMPLETED</code> with no answer at all (ADK 2.14; older ADK left it stuck in <code>WORKING</code>). Either way the error did not propagate.</li>
+        <li><strong>Task store durable, session not.</strong> The task is found, so the protocol is satisfied. The approval matches no pending call; ADK answers "Function call not found" and the task ends <code>FAILED</code> (ADK 2.14; older ADK ended it <code>COMPLETED</code> with the error as its answer, which misled any caller checking only the state). The approval is lost either way.</li>
         <li><strong>Both durable.</strong> The approval lands and the work moves on.</li>
       </ul>
       <div class="note ours"><span class="note-label">In this repo</span>On Kubernetes ADK deliberately uses <em>in-memory</em> sessions (it detects <code>KUBERNETES_SERVICE_HOST</code>), so a pod restart loses both stores. <code>TASK_STORE_URI</code> and <code>SESSION_SERVICE_URI</code> fix it; lab 80 walks all three outcomes on a real cluster.</div>
@@ -149,21 +149,21 @@
           await stage.send("tstore", "spec", "not found", { tone: "err" });
           wire.add({ kind: "in", actor: "server", label: "deployment-agent: TaskNotFoundError", status: "-32001", body: SPEC.rpcErr("TaskNotFoundError", 1, "TASK_NOT_FOUND"), open: true });
           await stage.send("spec", "front", "-32001", { tone: "err" });
-          await stage.send("front", "caller", "WORKING…", { tone: "err" });
-          stage.badge("front", h("span", { class: "chip err", text: "stuck WORKING" }));
-          wire.add({ kind: "note", actor: "client", label: "Stream closed. The caller's task A still says WORKING — forever. The hop swallowed the error." });
-          result(res, "warn", "<b>✗ Gone.</b> The task lived in the old pod's memory. The new pod answers <code>TaskNotFoundError</code>, and the caller sees task A stuck in <code>WORKING</code>: a downstream failure that did not propagate.");
+          await stage.send("front", "caller", "COMPLETED (empty)", { tone: "err" });
+          stage.badge("front", h("span", { class: "chip err", text: "COMPLETED, no answer" }));
+          wire.add({ kind: "note", actor: "client", label: "Task A ends COMPLETED with no text. The hop swallowed the error (ADK 2.14; older ADK left task A in WORKING forever)." });
+          result(res, "warn", "<b>✗ Gone.</b> The task lived in the old pod's memory. The new pod answers <code>TaskNotFoundError</code>, and the caller's task A ends <code>COMPLETED</code> with nothing to say: a downstream failure that did not propagate.");
         } else if (cfg.sessions === "memory") {
           await stage.send("spec", "tstore", "load task B");
           await stage.send("tstore", "spec", "found ✓");
           await stage.send("spec", "sstore", "load session");
           await stage.send("sstore", "spec", "no such call", { tone: "err" });
-          wire.add({ kind: "in", actor: "server", label: "statusUpdate · COMPLETED · “Function call not found for function response ids: {fc-2f69}”", sse: [SPEC.statusUpdate("task-a", "ctx-1", "COMPLETED", "Function call not found for function response ids: {'fc-2f69'}. Ensure each function response ID matches an existing function call in the session history.")], open: true });
-          await stage.send("spec", "front", "COMPLETED");
-          await stage.send("front", "caller", "COMPLETED");
-          stage.badge("front", PG.stateChip("COMPLETED"));
-          stage.badge("spec", PG.stateChip("COMPLETED"));
-          result(res, "warn", "<b>✗ Completed, but wrong.</b> The task survived, so the protocol was happy. The session holding the paused call did not, so the approval answered nothing, and the agent completed the task <em>with an error message as its answer</em>. Nothing was deployed. A caller checking only the state sees success.");
+          wire.add({ kind: "in", actor: "server", label: "statusUpdate · FAILED · “Function call not found for function response ids: {fc-2f69}”", sse: [SPEC.statusUpdate("task-a", "ctx-1", "FAILED", "Function call not found for function response ids: {'fc-2f69'}. Ensure each function response ID matches an existing function call in the session history.")], open: true });
+          await stage.send("spec", "front", "FAILED", { tone: "err" });
+          await stage.send("front", "caller", "FAILED", { tone: "err" });
+          stage.badge("front", PG.stateChip("FAILED"));
+          stage.badge("spec", PG.stateChip("FAILED"));
+          result(res, "warn", "<b>✗ Failed: the approval is lost.</b> The task survived, so the protocol was happy. The session holding the paused call did not, so the approval answered nothing. ADK 2.14 fails the task with that error; older ADK <em>completed</em> it with the error as its answer, so a caller checking only the state saw success. Nothing was deployed either way.");
         } else {
           await stage.send("spec", "tstore", "load task B");
           await stage.send("tstore", "spec", "found ✓");
@@ -223,7 +223,7 @@
       }), bres));
     },
     quiz: [
-      { q: "After a restart the task is found, yet the agent replies “Function call not found” and the task ends COMPLETED. What was not durable?",
+      { q: "After a restart the task is found, yet the agent replies “Function call not found” and the task ends FAILED. What was not durable?",
         opts: ["The A2A task store", "The agent framework's session (the paused call)", "The Agent Card", "The SSE connection"],
         a: 1, why: "The task store survived, so GetTask works. The pending function call lives in ADK's session, a separate store." },
       { q: "Why does an ADK agent on Kubernetes lose its sessions on restart even without any configuration?",

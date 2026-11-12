@@ -1,12 +1,18 @@
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: agentgateway
-spec:
-  # Verify against the installed chart:
-  #   kubectl get gatewayclass -o custom-columns=NAME:.metadata.name,CONTROLLER:.spec.controllerName
-  controllerName: agentgateway.dev/gateway-controller
----
+# Reference only: the Gateway-API form of this lab. The steps use standalone.yaml.
+#
+# To run it this way instead (agentgateway v1.4.1, from its source):
+#   helm upgrade --install agentgateway-crds oci://ghcr.io/agentgateway/charts/agentgateway-crds \
+#     --version "${AGENTGATEWAY_VERSION}" -n agentgateway-system --create-namespace
+#   helm upgrade --install agentgateway oci://ghcr.io/agentgateway/charts/agentgateway \
+#     --version "${AGENTGATEWAY_VERSION}" -n agentgateway-system --wait
+#
+# - The controller creates the `agentgateway` GatewayClass itself
+#   (controllerName agentgateway.dev/agentgateway); do not declare one.
+# - It parses A2A only on Service ports marked appProtocol: agentgateway.dev/a2a,
+#   so the ops-concierge Service needs that on its port.
+# - It is built against Gateway API v1.6.1; this lab pins v1.4.0 (versions.env).
+# - The proxy pod runs in this Gateway's namespace, labelled
+#   gateway.networking.k8s.io/gateway-name=a2a-ingress.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

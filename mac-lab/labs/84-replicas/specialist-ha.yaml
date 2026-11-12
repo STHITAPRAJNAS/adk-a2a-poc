@@ -78,6 +78,7 @@ spec:
             - name: A2A_ADVERTISE_URL
               value: http://$(POD_IP):8001
             - {name: A2A_OWNER_ROUTING, value: "0"}
+            - {name: A2A_CLUSTER_MODE, value: "0"}
           readinessProbe:
             httpGet: {path: /health, port: http-a2a}
             periodSeconds: 3

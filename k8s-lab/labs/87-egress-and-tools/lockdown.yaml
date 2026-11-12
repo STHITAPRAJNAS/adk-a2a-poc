@@ -1,0 +1,63 @@
+# Lab 87 — after this, the release agent can reach only what it needs.
+#
+# 1. deployment-agent: default-deny egress, then allow DNS, its own namespace
+#    (the concierge, the token service, lab 86's services, the probe), lab 83's
+#    trace collector, and the tools gateway. Nothing else: no internet, and no
+#    direct line to the MCP server.
+# 2. release-tools: accepts connections from the tools gateway only.
+#
+# NetworkPolicy is enforced by the cluster's network plugin. kind's default
+# (kindnet) enforces it in current kind releases; step 3 checks that it does.
+#
+# Ambient mesh note (lab 40): traffic between two meshed pods travels to port
+# 15008 (HBONE), not the service port. The same-namespace rule below allows all
+# ports for that reason. tools is not in the mesh, so port 3000 is what is seen.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: release-agent-egress
+  namespace: agents
+  labels: {lab: "87"}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: deployment-agent
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - podSelector: {}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: tools}
+          podSelector:
+            matchLabels: {app: tools-gateway}
+      ports:
+        - {protocol: TCP, port: 3000}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: release-tools-ingress
+  namespace: tools
+  labels: {lab: "87"}
+spec:
+  podSelector:
+    matchLabels: {app: release-tools}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: tools-gateway}
+      ports:
+        - {protocol: TCP, port: 3001}

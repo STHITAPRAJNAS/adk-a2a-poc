@@ -26,8 +26,8 @@ COPY pyproject.toml ./
 # an agent whose model is a LiteLlm instance fails at import with
 # "LiteLLM support requires: pip install google-adk[extensions]".
 RUN pip install --no-cache-dir \
-        "google-adk[a2a,extensions]==2.8.0" \
-        "a2a-sdk==1.1.2" \
+        "google-adk[a2a,extensions]==2.14.0" \
+        "a2a-sdk==1.3.0" \
         "python-dotenv>=1.0" \
         "uvicorn>=0.30" \
         "httpx>=0.27" \
@@ -37,6 +37,7 @@ RUN pip install --no-cache-dir \
         "greenlet>=3.0" \
         "sqlalchemy>=2.0" \
         "opentelemetry-exporter-otlp-proto-http>=1.30" \
+        "mcp>=2.3,<3" \
         "jwcrypto==1.5.6" \
         "sd-jwt==0.10.4"
 

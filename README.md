@@ -306,7 +306,14 @@ agents, two replicas where subscribe and cancel reach the pod that runs the
 task, and a delegation loop that is refused instead of followed. Each is an
 opt-in switch on these same servers (`servers/hardening.py`), off by default,
 covered by `tests/test_production.py` and `tests/test_replicas_and_loops.py`,
-and driven step by step with the probes in `scripts/`.
+and driven step by step with the probes in `scripts/`. Lab 84 also runs the
+fix the A2A library now ships itself (a2a-sdk cluster mode, `A2A_CLUSTER_MODE`).
+
+Two infrastructure labs follow: **lab 87** locks down what the release agent
+can reach (default-deny egress, and an MCP-aware agentgateway that shows and
+allows only two of four tools on `servers/mcp_release_tools.py`), and **lab 88**
+runs it as an **Agent Sandbox** that is suspended while a person decides and
+resumed on the same disk to take the answer.
 
 **[`payments/`](payments/)** adds **agent payments with AP2** (the Agent
 Payments Protocol, v0.2, on the official `ap2` SDK): the release agent buys
@@ -358,8 +365,8 @@ across minors.
 
 | | |
 |---|---|
-| `google-adk` | 2.8.0 |
-| `a2a-sdk` | 1.1.2 |
+| `google-adk` | 2.14.0 |
+| `a2a-sdk` | 1.3.0 |
 | Python | 3.11+ |
 
 The A2A endpoint ADK mounts answers both JSON-RPC generations on the same URL:

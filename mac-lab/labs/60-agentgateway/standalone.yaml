@@ -6,7 +6,8 @@
 # "this route is A2A" (`a2a: {}`), and the logs then describe A2A calls rather
 # than opaque POSTs.
 #
-# Config schema is from the pinned release examples/a2a/config.yaml (v0.8.2).
+# Config schema: agentgateway v1.4.1 (examples/traffic-a2a/config.yaml); this
+# config validates against that release's schema/config.json.
 ---
 apiVersion: v1
 kind: Namespace
@@ -50,8 +51,8 @@ spec:
     spec:
       containers:
         - name: agentgateway
-          # 0.8.2 is multi-arch (arm64 + amd64). Pin for repeatability.
-          image: ghcr.io/agentgateway/agentgateway:0.8.2
+          # v1.4.1 is multi-arch (linux/arm64 + linux/amd64). Pin for repeatability.
+          image: ghcr.io/agentgateway/agentgateway:v1.4.1
           args: ["-f", "/config/config.yaml"]
           env:
             # Make request handling visible in the logs.

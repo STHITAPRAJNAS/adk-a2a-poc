@@ -45,6 +45,7 @@ import httpx  # noqa: E402
 from common.a2a_wire import (  # noqa: E402
     CANCELED_STATES,
     COMPLETED_STATES,
+    FAILED_STATES,
     PAUSED_STATES,
     TERMINAL_STATES,
     A2AWireClient,
@@ -204,6 +205,21 @@ async def cmd_pause(args: argparse.Namespace) -> int:
 # -------------------------------------------------------------------------- resume
 
 
+async def _lost_downstream(args: argparse.Namespace, state: dict[str, Any]) -> list[str]:
+    """Downstream task ids from pause time that the specialist no longer has."""
+    lost = []
+    async with _client(None) as http:
+        specialist = A2AWireClient(http, args.specialist)
+        for task in state.get("downstream_task_ids") or []:
+            try:
+                got = await specialist.get_task(task)
+            except httpx.HTTPError:
+                continue
+            if not got.get("status"):
+                lost.append(task)
+    return lost
+
+
 async def cmd_resume(args: argparse.Namespace) -> int:
     state = _load_state(args.state)
     token = await _token_from_args(args, state)
@@ -269,7 +285,45 @@ async def cmd_resume(args: argparse.Namespace) -> int:
         if args.reject or JOB_TOOL in turn.tool_responses:
             print(_c(GREEN, "\n✓ the task resumed and completed"))
             return 0
+        if not said.strip():
+            # ADK 2.14+: a downstream error ends the front door's task COMPLETED
+            # with nothing to say. Ask the specialist what became of its task.
+            lost = await _lost_downstream(args, state)
+            print(
+                _c(
+                    RED,
+                    "\n✗ COMPLETED WITH NO ANSWER: the front door finished, the release did not",
+                )
+            )
+            if lost:
+                print(
+                    _c(
+                        RED,
+                        f"  The specialist no longer knows task {', '.join(lost)}: it lived only",
+                    )
+                )
+                print(_c(RED, "  in that pod's memory, so the approval had nothing to answer."))
+            print(
+                _c(
+                    DIM,
+                    "  Make the task store durable (TASK_STORE_URI), and the session store too.",
+                )
+            )
+            return 1
         print(_c(YELLOW, "\n? completed without starting a deployment — read what the agent said"))
+        return 1
+    if final in FAILED_STATES:
+        said = " ".join(turn.texts)
+        if "Function call not found" in said:
+            # Protocol state survived, agent state did not. Older ADK reported
+            # this as COMPLETED with the error as its answer; 2.14+ says FAILED.
+            print(
+                _c(RED, "\n✗ FAILED, AND WHY: the A2A task survived the restart, the ADK session")
+            )
+            print(_c(RED, "  holding the paused call did not. The approval answered nothing."))
+            print(_c(DIM, "  Make the session store durable too (SESSION_SERVICE_URI)."))
+        else:
+            print(_c(RED, f"\n✗ the task FAILED: {said[:200] or 'no reason given'}"))
         return 1
     if final in PAUSED_STATES and nxt is not None and nxt.call_id == pending["call_id"]:
         print(_c(RED, "\n✗ the task is still parked on the same gate — the answer did not land"))

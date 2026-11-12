@@ -444,7 +444,7 @@
   E.replicas = {
     plain: `<p>Two copies of an agent share one database of tasks, so either copy can <em>look up</em> any task. But the <em>work</em> on a task, and the live updates it sends, happen inside the one copy that started it.</p>
       <p>Ask the other copy for updates and you hear nothing more. Ask it to cancel and it says "done" while the real work carries on, and later overwrites "canceled". Like two cooks sharing an order book: either can read any order, only the one cooking can tell you it is ready, or stop.</p>
-      <p>The fix: each copy notes which tasks it is working on, and the other copy passes those calls to it.</p>`,
+      <p>Two fixes: each copy notes which tasks it is working on and the other copy passes those calls to it; or (built into the A2A library since 1.2) every update also goes into the shared database, so the other copy can read updates from there, and every write carries a version number, so an out-of-date write is refused.</p>`,
     terms: [
       ["replica", "One of several identical copies of the agent behind one address."],
       ["shared task store", "One database every replica reads and writes tasks in."],
@@ -456,7 +456,8 @@
       "Press <b>1 · Start a release (lands on A)</b>, then <b>2 · SubscribeToTask</b>: the client gets one snapshot and then silence.",
       "Start again and press <b>2 · CancelTask</b>: B says CANCELED, then A overwrites it.",
       "Choose <b>lands on A</b> and repeat: it works, by luck.",
-      "Turn on <b>Forward to the owning pod</b> and repeat with <b>follow-up lands on B</b>: both calls now reach A.",
+      "Choose <b>forward to owner</b> and repeat with <b>follow-up lands on B</b>: both calls now reach A.",
+      "Choose <b>SDK cluster mode</b> and repeat: B answers both itself, through the shared database.",
     ],
   };
 

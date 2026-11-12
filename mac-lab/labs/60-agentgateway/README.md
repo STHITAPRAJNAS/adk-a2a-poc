@@ -23,9 +23,9 @@ together and people reach for the wrong one constantly. See
 
 ## Install (standalone — the reliable path on kind)
 
-agentgateway's Kubernetes/Gateway-API mode is delivered through kgateway and is
-still churning; the simplest, most transparent way to run it on kind is
-**standalone**: one pod, one flat config file, one NodePort. The config is a
+agentgateway also has a Kubernetes/Gateway-API mode with its own controller, but
+the simplest, most transparent way to run it on kind is **standalone**: one pod,
+one flat config file, one NodePort. The config is a
 single file you can read — and the line that matters is `a2a: {}`, which tells
 the proxy to *parse the A2A protocol* on that route.
 
@@ -36,13 +36,15 @@ kubectl -n agentgateway-system rollout status deploy/agentgateway
 ```
 
 `standalone.yaml` is a ConfigMap (the agentgateway config), a Deployment (image
-`ghcr.io/agentgateway/agentgateway:0.8.2`, multi-arch), and a NodePort Service on
+`ghcr.io/agentgateway/agentgateway:v1.4.1`, multi-arch), and a NodePort Service on
 `30081` with `externalTrafficPolicy: Cluster` — the same kind fix as lab 50, so
 host `:8081` reaches the pod.
 
-> The lab also ships `gateway.yaml` + `a2a-route.yaml` (the Gateway-API form) for
-> when you run agentgateway under kgateway's controller. They're kept for
-> reference; the standalone path above is what these steps use.
+> The lab also ships `gateway.yaml` + `a2a-route.yaml`, the Gateway-API form, for
+> reference. Its header lists what that mode needs on v1.4.1: two charts (CRDs
+> first), the GatewayClass the controller creates itself, and
+> `appProtocol: agentgateway.dev/a2a` on the Service port. The steps here use
+> the standalone path above, whose config is checked against v1.4.1's schema.
 
 ## Drive it, and *see* it parse A2A
 

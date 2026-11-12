@@ -12,7 +12,7 @@ if [ -z "$T" ] && [ -z "$S" ]; then
 fi
 need_probe
 [ -n "$T" ] && ok "task store    $T" || no "TASK_STORE_URI not set on deployment-agent"
-[ -n "$S" ] && ok "session store $S" || no "SESSION_SERVICE_URI not set — the resume will 'complete' wrongly"
+[ -n "$S" ] && ok "session store $S" || no "SESSION_SERVICE_URI not set — the resume will fail: the paused call is lost"
 
 OUT=$(probe pause 2>&1)
 if echo "$OUT" | grep -q "parked at request_change_approval"; then
