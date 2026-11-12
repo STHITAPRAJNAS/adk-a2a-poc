@@ -24,7 +24,10 @@
     PG.tracks.push({ id: id, title: title, blurb: blurb });
   };
   PG.lesson = function (def) {
-    PG.lessons.push(def);
+    /* def.before: slot this lesson in ahead of one already registered, so a
+     * lesson kept in its own file can sit mid-track. */
+    const at = def.before ? PG.lessons.findIndex(function (l) { return l.id === def.before; }) : -1;
+    if (at >= 0) PG.lessons.splice(at, 0, def); else PG.lessons.push(def);
     PG.byId[def.id] = def;
   };
   PG.trackOf = function (def) {

@@ -3,6 +3,7 @@
 
     list  URL               which tools the server shows this caller
     call  URL TOOL [JSON]   call one tool with JSON arguments
+    read  URL URI           read one resource (e.g. an MCP Apps ui:// view)
     web   URL               plain HTTPS GET, to show whether egress is open
 
 Exit codes: 0 worked, 2 refused or filtered, 3 could not connect (blocked).
@@ -37,6 +38,21 @@ async def cmd_list(url: str) -> int:
     print(f"tools this caller can see at {url}:")
     for tool in tools:
         print(f"  {tool.name:<22} {DIM}{(tool.description or '').splitlines()[0]}{RESET}")
+        view = ((tool.meta or {}).get("ui") or {}).get("resourceUri")
+        if view:
+            print(f"  {'':<22} {DIM}view (MCP Apps): {view}{RESET}")
+    return 0
+
+
+async def cmd_read(url: str, uri: str) -> int:
+    from mcp import Client
+
+    async with Client(url) as client:
+        result = await client.read_resource(uri)
+    for item in result.contents:
+        text = getattr(item, "text", "") or ""
+        print(f"{GREEN}✓ {item.uri}{RESET}  {item.mime_type}  {len(text)} characters")
+        print(f"{DIM}{text[:200]}{RESET}")
     return 0
 
 
@@ -75,6 +91,9 @@ def main() -> int:
     call.add_argument("url")
     call.add_argument("tool")
     call.add_argument("args", nargs="?", default="{}")
+    read = sub.add_parser("read")
+    read.add_argument("url")
+    read.add_argument("uri")
     sub.add_parser("web").add_argument("url")
     args = parser.parse_args()
     if args.cmd == "web":
@@ -82,6 +101,8 @@ def main() -> int:
     try:
         if args.cmd == "list":
             return asyncio.run(cmd_list(args.url))
+        if args.cmd == "read":
+            return asyncio.run(cmd_read(args.url, args.uri))
         return asyncio.run(cmd_call(args.url, args.tool, json.loads(args.args)))
     except BaseException as exc:  # noqa: BLE001 - report every failure as a result
         inner = exc.exceptions[0] if isinstance(exc, BaseExceptionGroup) and exc.exceptions else exc

@@ -570,6 +570,23 @@
     ],
   };
 
+  E["fe-genui"] = {
+    plain: `<p>An agent can ask for more than text: a card with two buttons, a form, a chart. Letting it send HTML is the danger of the previous lesson. There are two safer ways.</p>
+      <p><b>A2UI</b>: the agent sends a <em>description</em> ("a card with this text and an Approve button") and your page draws it with its own trusted parts. Anything it doesn't know, it doesn't draw. <b>MCP Apps</b>: a tool comes with its own little web page, which runs walled off in a frame and can only <em>ask</em> your page for things.</p>`,
+    terms: [
+      ["A2UI", "A format for describing UI as data: components from a catalog the client owns, plus a data model."],
+      ["catalog", "The list of components a client knows how to draw. The client's, not the agent's."],
+      ["action", "What an A2UI button sends back to the agent when pressed. A message, not code."],
+      ["MCP Apps", "An MCP extension: a tool names a ui:// page that the host shows in a sandboxed frame."],
+      ["sandboxed iframe", "A frame the browser keeps apart from your page: no access to its data, no network unless allowed."],
+    ],
+    tryThis: [
+      "Lab 1: with <b>approval card</b>, press <b>Approve</b> and read the action message in the wire.",
+      "Pick <b>unknown component</b>, <b>leaky image</b> and <b>a cycle</b>: see what the renderer refuses and why.",
+      "Lab 2: press <b>Check staging too</b> in the freeze card, then switch to <b>a view that over-reaches</b> and press its button.",
+    ],
+  };
+
   E["fe-live"] = {
     plain: `<p>This page becomes a real A2A client of the concierge running on your own laptop. It reads the card, streams a release, shows the approval as a form, sends your answer back, follows the deployment and finishes the task.</p>
       <p>Everything from the previous lessons, against real agents, from a real browser.</p>`,

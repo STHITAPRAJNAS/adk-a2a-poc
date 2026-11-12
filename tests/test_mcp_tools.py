@@ -81,3 +81,23 @@ def test_unknown_tool_is_refused(mcp_server):
 def test_unreachable_server_reads_as_blocked():
     code, out = probe("list", "http://127.0.0.1:18079/mcp")
     assert code == 3 and "blocked" in out, out
+
+
+def test_freeze_tool_names_an_mcp_apps_view(mcp_server):
+    code, out = probe("list", mcp_server)
+    assert code == 0 and "view (MCP Apps): ui://release-tools/freeze-card.html" in out, out
+
+
+def test_view_is_an_mcp_app_resource(mcp_server):
+    code, out = probe("read", mcp_server, "ui://release-tools/freeze-card.html")
+    assert code == 0 and "text/html;profile=mcp-app" in out, out
+
+
+def test_proving_ground_hosts_the_same_view():
+    """The Agent-generated UI lesson renders the file this server serves."""
+    from servers.mcp_release_tools import FREEZE_CARD_HTML
+
+    js = (REPO_ROOT / "a2a-proving-ground/js/lessons/07b-genui.js").read_text()
+    block = js.split("FREEZE_CARD_HTML:begin")[1].split("FREEZE_CARD_HTML:end")[0]
+    copy = block.split("`", 2)[1]
+    assert copy.strip() == FREEZE_CARD_HTML.strip()
