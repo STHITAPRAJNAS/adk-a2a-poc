@@ -299,7 +299,7 @@ hands-on path that runs these two agents on Kubernetes with a service mesh and
 three different gateways, to make the east-west/north-south distinction
 something you can measure rather than read about. **[`mac-lab/`](mac-lab/)** is
 the same path for an Apple Silicon Mac (Docker Desktop, no GPU node). Both end
-with labs 80–88, **production hardening**: a paused task that survives its pod
+with labs 80–92, **production hardening**: a paused task that survives its pod
 being deleted, `CancelTask` that reaches the next hop, the user's identity
 carried across a hop by RFC 8693 token exchange, one trace spanning both
 agents, two replicas where subscribe and cancel reach the pod that runs the
@@ -309,11 +309,16 @@ covered by `tests/test_production.py` and `tests/test_replicas_and_loops.py`,
 and driven step by step with the probes in `scripts/`. Lab 84 also runs the
 fix the A2A library now ships itself (a2a-sdk cluster mode, `A2A_CLUSTER_MODE`).
 
-Two infrastructure labs follow: **lab 87** locks down what the release agent
+Then: **lab 87** locks down what the release agent
 can reach (default-deny egress, and an MCP-aware agentgateway that shows and
 allows only two of four tools on `servers/mcp_release_tools.py`), and **lab 88**
 runs it as an **Agent Sandbox** that is suspended while a person decides and
-resumed on the same disk to take the answer.
+resumed on the same disk to take the answer. **Lab 89** carries a token budget
+across hops (each agent charges its model calls and stops at zero; the trace
+shows tokens and cost), **lab 91** makes a retried deployment happen once when
+the CD system's answer is lost (an `Idempotency-Key` from the approval
+ticket), and **lab 92** runs code the agent writes through ADK's executors, in
+the agent's pod and then in a Job that reaches nothing.
 
 **[`payments/`](payments/)** adds **agent payments with AP2** (the Agent
 Payments Protocol, v0.2, on the official `ap2` SDK): the release agent buys

@@ -1,0 +1,75 @@
+# Lab 92 — a namespace for code the release agent writes and runs.
+#
+# ADK's GkeCodeExecutor (job mode) starts one Job per run. This file decides
+# what such a Job is allowed to be, and to reach:
+#
+#   Namespace agent-code   Pod Security "restricted" is ENFORCED: a pod that
+#                          could run as root, keep capabilities or skip seccomp
+#                          is refused at admission.
+#   ResourceQuota          at most 4 code pods at once, 2 CPU, 2 GiB in total,
+#                          so a loop of runs cannot take over the cluster.
+#   NetworkPolicy          every pod here: no traffic in, no traffic out. Not
+#                          DNS, not the Kubernetes API, not other agents.
+#   Role + RoleBinding     the release agent's service account (agents/
+#                          deployment-agent) may create Jobs and ConfigMaps
+#                          HERE and read their logs. Nothing else, nowhere else.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-code
+  labels:
+    lab: "92"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: agent-code
+  namespace: agent-code
+spec:
+  hard:
+    pods: "4"
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    configmaps: "50"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: agent-code
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: code-runner
+  namespace: agent-code
+rules:
+  # The rules ADK's GkeCodeExecutor documents for job mode.
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [create, delete, get, patch]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, watch, create, delete]
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: release-agent-runs-code
+  namespace: agent-code
+subjects:
+  - kind: ServiceAccount
+    name: deployment-agent
+    namespace: agents
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: code-runner

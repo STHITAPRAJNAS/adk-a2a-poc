@@ -88,6 +88,7 @@ them in order the first time — they build on each other's cluster state.
 | 88 | [Agent Sandbox](labs/88-agent-sandbox/) | One agent instance as a Sandbox: suspend while a person decides, resume on the same disk | An approval that lands after suspend and resume |
 | 89 | [Budgets](labs/89-budgets/) | A token budget carried across hops: each agent charges its model calls, stops at zero, and the trace shows tokens and cost | A request that stops with a budget sentence instead of spending more |
 | 91 | [Exactly once](labs/91-exactly-once/) | A retried tool call against a CD system that lost its answer: two deployments, then one with an idempotency key | One deployment per approved change, with the answer lost |
+| 92 | [Code sandbox](labs/92-code-sandbox/) | Agent-written code through ADK's local executor, then a locked-down Job: what each can reach | Agent-written code that reaches none of seven targets |
 
 Supporting reading, useful at any point:
 

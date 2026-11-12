@@ -378,6 +378,7 @@ alias probe='kubectl -n agents exec a2a-probe -- python scripts/a2a_prod_probe.p
 | [88](labs/88-agent-sandbox/) | an agent waiting for a person holds a pod the whole time | an Agent Sandbox: suspend (pod gone, disk kept), resume on the same disk | `./scripts/verify-88-sandbox.sh` |
 | [89](labs/89-budgets/) | one request through two agents, each spending tokens nobody capped | `A2A_TOKEN_BUDGET`: a budget carried on every hop, charged per model call, refused at zero | `./scripts/verify-89-budgets.sh` |
 | [91](labs/91-exactly-once/) | the CD system starts the deployment but its answer is lost; the retry deploys again | `IDEMPOTENT_DEPLOYS=1`: the approval ticket as `Idempotency-Key` | `./scripts/verify-91-exactly-once.sh` |
+| [92](labs/92-code-sandbox/) | code the agent writes runs in its pod, with its token, files and network | ADK's job executor in a namespace with Pod Security `restricted`, deny-all traffic and a quota | `./scripts/verify-92-code-sandbox.sh` |
 
 Labs 84 and 85 deploy their own copies of the agents next to the chart's, so
 they work whether or not 80–83 are applied; after `make image` for them,
@@ -390,7 +391,7 @@ buying tools with `kubectl set env`. Do it with lab 82 undone (`make
 reset-agents`), since its probe calls the release agent directly.
 
 On an 8 GB Docker Desktop, run each lab's **Clean up** before the next: labs
-84–88 each add their own pods next to the chart's agents.
+84–92 each add their own pods next to the chart's agents.
 
 Lab 87 needs `make image` first (the image now carries an MCP server). Lab 88
 installs the Agent Sandbox controller (`AGENT_SANDBOX_VERSION` in
@@ -398,6 +399,8 @@ installs the Agent Sandbox controller (`AGENT_SANDBOX_VERSION` in
 Lab 89 needs `make image` and a new probe pod; it changes the chart's agents
 with `kubectl set env`, and its step 4 reuses lab 83's Jaeger. Lab 91 adds a
 fake CD system (`cd-system.yaml`); do it with lab 82 undone, like lab 86.
+Lab 92 creates the `agent-code` namespace; do it with lab 87's lockdown
+removed, since the release agent must reach the Kubernetes API to start Jobs.
 
 Do 80–83 in order: 82 closes the agents to callers without a token, which the
 earlier north-south labs do not send, so its README ends with the undo. Each
