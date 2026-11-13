@@ -30,6 +30,7 @@ versions:  ## Show pinned versions and what is current upstream
 	@echo "  agent router     https://aigateway.envoyproxy.io/release-notes/"
 	@echo "  agentgateway     https://github.com/agentgateway/agentgateway/releases"
 	@echo "  agent sandbox    https://github.com/kubernetes-sigs/agent-sandbox/releases"
+	@echo "  keda             https://github.com/kedacore/keda/releases"
 
 cluster:  ## Lab 10 — create the kind cluster
 	cd labs/10-cluster && terraform init -input=false && terraform apply -auto-approve
@@ -50,7 +51,7 @@ reset-agents:  ## Labs 80-83 — put both agents back exactly as the chart rende
 	kubectl -n agents delete deploy ops-concierge deployment-agent --ignore-not-found
 	$(MAKE) agents
 
-probe:  ## Labs 80-92 — start the in-cluster probe pod
+probe:  ## Labs 80-93 — start the in-cluster probe pod
 	kubectl apply -f labs/80-durable-tasks/probe.yaml
 	kubectl -n agents wait --for=condition=Ready pod/a2a-probe --timeout=120s
 	-kubectl get crd authorizationpolicies.security.istio.io >/dev/null 2>&1 && \

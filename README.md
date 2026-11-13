@@ -299,7 +299,7 @@ hands-on path that runs these two agents on Kubernetes with a service mesh and
 three different gateways, to make the east-west/north-south distinction
 something you can measure rather than read about. **[`mac-lab/`](mac-lab/)** is
 the same path for an Apple Silicon Mac (Docker Desktop, no GPU node). Both end
-with labs 80–92, **production hardening**: a paused task that survives its pod
+with labs 80–93, **production hardening**: a paused task that survives its pod
 being deleted, `CancelTask` that reaches the next hop, the user's identity
 carried across a hop by RFC 8693 token exchange, one trace spanning both
 agents, two replicas where subscribe and cancel reach the pod that runs the
@@ -318,7 +318,12 @@ across hops (each agent charges its model calls and stops at zero; the trace
 shows tokens and cost), **lab 91** makes a retried deployment happen once when
 the CD system's answer is lost (an `Idempotency-Key` from the approval
 ticket), and **lab 92** runs code the agent writes through ADK's executors, in
-the agent's pod and then in a Job that reaches nothing.
+the agent's pod and then in a Job that reaches nothing. **Lab 93** feeds the
+release agent from a queue (Redis Streams, `servers/event_bridge.py`): the
+approval arrives as an event too, a crash after sending makes the
+redelivered event open a second release until the bridge looks before
+sending, invalid events go to a dead-letter stream, and KEDA scales the
+bridge to zero.
 
 **[`payments/`](payments/)** adds **agent payments with AP2** (the Agent
 Payments Protocol, v0.2, on the official `ap2` SDK): the release agent buys

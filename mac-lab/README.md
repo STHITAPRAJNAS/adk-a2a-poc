@@ -89,6 +89,7 @@ them in order the first time — they build on each other's cluster state.
 | 89 | [Budgets](labs/89-budgets/) | A token budget carried across hops: each agent charges its model calls, stops at zero, and the trace shows tokens and cost | A request that stops with a budget sentence instead of spending more |
 | 91 | [Exactly once](labs/91-exactly-once/) | A retried tool call against a CD system that lost its answer: two deployments, then one with an idempotency key | One deployment per approved change, with the answer lost |
 | 92 | [Code sandbox](labs/92-code-sandbox/) | Agent-written code through ADK's local executor, then a locked-down Job: what each can reach | Agent-written code that reaches none of seven targets |
+| 93 | [Event-driven](labs/93-event-driven/) | The release agent fed from a Redis Stream: approvals as events, a crash and its redelivery, dead letters, scale to zero with KEDA | One approval ticket per release event, through a crash |
 
 Supporting reading, useful at any point:
 

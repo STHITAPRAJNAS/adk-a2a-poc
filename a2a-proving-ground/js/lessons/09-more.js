@@ -238,7 +238,8 @@
         <li><strong>Results go out, not back down a connection.</strong> A push notification (§9) or a reply event, because the caller is long gone.</li>
         <li><strong>Each event is handled once.</strong> Queues redeliver; side effects need idempotency (lab 91).</li>
         <li><strong>Cold start is part of the latency.</strong> Image pull, Python import, model client warm-up. Fine for a queue; often not for a chat.</li>
-      </ul>`,
+      </ul>
+      ${REPO}Lab 93 runs this for real: <code>servers/event_bridge.py</code> feeds the release agent from a Redis Stream, the approval arrives as its own event, a crash after sending shows why a redelivered event must be looked up before it is sent again (<code>ListTasks</code> by the event's <code>contextId</code>), invalid events go to a dead-letter stream, and KEDA's <code>redis-streams</code> scaler takes the bridge to zero.</div>`,
     lab: function (bench) {
       const a = PG.lab(bench, "A quiet night, then an incident", "Lab · simulated cluster, 1 tick = 10 s");
       const cfg = { mode: "queue", cooldown: 60, polling: 30 };

@@ -1,0 +1,28 @@
+# Lab 93, step 6 (needs KEDA): run no bridge at all while the queue is empty.
+#
+# The redis-streams scaler with a consumerGroup and lagCount scales on LAG:
+# events added to the stream that the group has not read yet. That is what
+# can wake the bridge from zero (pendingEntriesCount cannot: it only counts
+# events already handed to a consumer). Metadata names checked against
+# KEDA's pkg/scalers/redis_streams_scaler.go.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: event-bridge
+  namespace: agents
+  labels: {lab: "93"}
+spec:
+  scaleTargetRef:
+    name: event-bridge
+  minReplicaCount: 0
+  maxReplicaCount: 3
+  pollingInterval: 5     # seconds between checks of the stream
+  cooldownPeriod: 60     # seconds of no lag before going back to zero
+  triggers:
+    - type: redis-streams
+      metadata:
+        address: events-redis.agents.svc.cluster.local:6379
+        stream: release-events
+        consumerGroup: bridge
+        lagCount: "5"            # one bridge per 5 unread events
+        activationLagCount: "0"  # any unread event wakes it from zero

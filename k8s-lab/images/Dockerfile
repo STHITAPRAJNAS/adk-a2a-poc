@@ -36,6 +36,7 @@ RUN pip install --no-cache-dir \
         "sqlalchemy>=2.0" \
         "opentelemetry-exporter-otlp-proto-http>=1.30" \
         "mcp>=2.3,<3" \
+        "redis>=5,<7" \
         "jwcrypto==1.5.6" \
         "sd-jwt==0.10.4"
 

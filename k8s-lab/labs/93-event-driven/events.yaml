@@ -1,0 +1,104 @@
+# Lab 93 — the release agent fed from a queue.
+#
+#   events-redis  :6379  Redis 7, holding three streams:
+#                        release-events       incoming work (consumer group "bridge")
+#                        release-results      what the bridge did with each event
+#                        release-events-dead  events it gave up on, and why
+#   event-bridge         a worker (no port): reads release-events, sends each
+#                        event to the release agent over A2A, records the
+#                        outcome, then acknowledges. Code: servers/event_bridge.py.
+#
+# The bridge's consumer name is its pod name, so after a crash the restarted
+# container (same pod) claims its own unacknowledged events again.
+apiVersion: v1
+kind: Service
+metadata:
+  name: events-redis
+  namespace: agents
+  labels: {app: events-redis, lab: "93"}
+spec:
+  selector: {app: events-redis}
+  ports:
+    - {name: redis, port: 6379, targetPort: redis}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: events-redis
+  namespace: agents
+  labels: {app: events-redis, lab: "93"}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: events-redis}
+  template:
+    metadata:
+      labels: {app: events-redis, lab: "93"}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4-alpine
+          # Append-only file on /data: the queue survives a Redis container restart.
+          args: ["--appendonly", "yes", "--save", ""]
+          ports:
+            - {name: redis, containerPort: 6379}
+          readinessProbe:
+            exec: {command: ["redis-cli", "ping"]}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-bridge
+  namespace: agents
+  labels: {app: event-bridge, lab: "93"}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: event-bridge}
+  template:
+    metadata:
+      labels: {app: event-bridge, lab: "93"}
+    spec:
+      containers:
+        - name: bridge
+          image: adk-a2a-agent:dev
+          imagePullPolicy: IfNotPresent
+          args: ["servers.event_bridge"]
+          env:
+            - {name: EVENTS_REDIS_URL, value: "redis://events-redis.agents.svc.cluster.local:6379/0"}
+            - {name: BRIDGE_AGENT_URL, value: "http://deployment-agent.agents.svc.cluster.local:8001/a2a/deployment_agent"}
+            # Step 3 turns this on: look before sending a redelivered event.
+            - {name: BRIDGE_DEDUPE, value: "0"}
+            # How long an unacknowledged event waits before it is claimed again,
+            # and how many tries a retryable failure gets before the dead stream.
+            - {name: BRIDGE_RETRY_SECONDS, value: "5"}
+            - {name: BRIDGE_MAX_DELIVERIES, value: "3"}
+          resources:
+            requests: {cpu: 20m, memory: 96Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}

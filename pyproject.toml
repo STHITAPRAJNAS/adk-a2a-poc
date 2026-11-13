@@ -21,6 +21,7 @@ dependencies = [
     "sqlalchemy>=2.0",                            # lab 80: DatabaseTaskStore
     "opentelemetry-exporter-otlp-proto-http>=1.30",  # lab 83: OTLP export
     "mcp>=2.3,<3",                                # lab 87: MCP tool server + probe
+    "redis>=5,<7",                                # lab 93: event bridge on Redis Streams
 ]
 
 [project.optional-dependencies]
